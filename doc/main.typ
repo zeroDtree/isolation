@@ -1,7 +1,7 @@
 
 #set document(
-  title: "服务器权限隔离系统设计（用户级）",
-  author: "管理员",
+  title: "Server Permission Isolation Design (User Level)",
+  author: "Administrator",
   date: datetime.today(),
 )
 #set page(
@@ -12,7 +12,7 @@
 #set text(
   font: ("Noto Serif CJK SC", "New Computer Modern", "Source Han Serif SC"),
   size: 11pt,
-  lang: "zh",
+  lang: "en",
 )
 #set heading(numbering: "1.")
 #set par(justify: true, leading: 0.8em)
@@ -30,64 +30,82 @@
   width: 100%,
 )
 #show link: underline
-// ── 正文 ────────────────────────────────────────────────────────────────────
-= 服务器权限隔离系统设计（用户级）
+// -- Main content ------------------------------------------------------------
 
-本文档描述基于 Linux 多账户与*目录权限*的多用户隔离设计，适用于多人共用服务器的科研环境。每位用户拥有独立系统账户与主目录，通过统一 SSH 服务以不同用户名登录；数据按用户划分目录，通过 UID/GID 与文件权限实现互不可见。*本文档不涉及 CPU、内存、任务数等资源的配额或 cgroup 限制*；若日后需要，可另行配置。
+= Server Permission Isolation Design (User Level)
 
-== 设计目标
+This document describes a multi-user isolation design based on Linux accounts and *directory permissions*, intended for shared research servers. Each user has an independent system account and home directory, and logs in through a single SSH service with their own username. Data is split by user directories, and cross-user visibility is restricted through UID/GID and file permissions. *This document does not cover CPU, memory, process-count quotas, or cgroup limits*; those can be added separately if needed.
 
-- *安全隔离*：各用户主目录与私有数据目录对他人不可读；共享数据只读或受控可写
-- *易于管理*：使用 `useradd`、`chown`、`chmod`、用户组等标准工具完成账户与目录权限配置
-- *用户友好*：统一 SSH 入口（单端口），按用户名区分会话
+== Design Goals
 
-== 整体架构
+- *Security isolation*: each user's home and private data directories are unreadable to others; shared data is read-only or controlled writable.
+- *Operational simplicity*: account and directory permissions are managed with standard tools such as `useradd`, `chown`, `chmod`, and groups.
+- *User-friendly access*: a unified SSH entry point (single port) with session separation by username.
+
+== Overall Architecture
 
 ```
-宿主机（单一 Linux 系统）
-├── SSH 服务（sshd，通常端口 22）
-│   ├── 用户 user_a（UID 1001）→ 登录后 shell 环境
-│   │   ├── 主目录 /home/user_a（权限 700，仅本人）
-│   │   └── 数据目录 /data/user_a（大容量数据，权限 700，仅本人）
-│   ├── 用户 user_b（UID 1002）…
-│   └── 用户 user_c（UID 1003）…
-├── 共享数据区：/data/shared（root 或专用组管理，对用户只读或受限写）
-└── 各用户数据区：/data/{username}（属主为该用户，模式 700 或 750+ACL）
+Host machine (single Linux system)
+├── SSH service (sshd, usually port 22)
+│   ├── User user_a (UID 1001) -> login shell session
+│   ├── User user_b (UID 1002) ...
+│   └── User user_c (UID 1003) ...
+├── Shared data area: /data/shared (managed by root or dedicated group)
+└── User private data areas: /data/{username} (owned by that user)
 ```
 
-用户通过 `ssh user_a@服务器` 登录；进程以该 UID 运行，仅能访问对该 UID/组授权的路径。该方案基于 UID/GID 与文件权限控制访问，同机进程共享内核命名空间。共享数据集通过只读挂载或目录权限（如 `755` + 属主 root、其他人只读）防止误删。
+After login through `ssh user_a@host`, processes run under that user's UID and can only access paths authorized to that UID/group. This model controls access with UID/GID and file permissions, while processes still share the same kernel namespace on the host. Shared datasets can be protected from accidental deletion by read-only mounts or strict directory modes (for example `755` with root ownership and read-only access for others).
 
-== 账户与权限规范
+== Directory and Data Layout
 
-=== 用户与组
+```
+Host filesystem:
+/data/
+├── shared/          # shared datasets (read-only or group-read-only)
+│   ├── ImageNet/
+│   ├── COCO/
+│   └── ...
+├── user_a/          # private for user A (owner user_a, mode 700)
+├── user_b/
+└── user_c/
+```
 
-- 每位科研用户对应一个*登录账户*（如 `user_a`），*禁止多人共用同一账户*。
-- 为共享只读资源可建组 `shared_ro`，将需读共享数据的用户加入该组；共享目录属组 `shared_ro`，权限 `2775` 或 `0750`（按是否需要组内协作调整）。
+- Users can read/write directories they own under their UID and cannot read other users' `/home/*` or `/data/*` (assuming correct permissions).
+- The top-level `/data` directory is recommended as `root:root` with mode `755`, for consistent mount point and path entry management.
+- Shared directories are managed by root or `shared_ro`, without `o+w`; if needed, use sticky-bit subdirectories or dedicated upload areas.
+- System software is installed by root; user-level Python/conda environments stay in each user's own home.
 
-=== 主目录与数据目录
+== Account and Permission Rules
 
-- `/home/{username}` 权限建议 `700`（`drwx------`），避免其他用户列举或进入。
-- 大容量数据放在独立盘 `/data/{username}`，`chown {username}:{username}`，权限 `700`；日常工作以主目录 `~` 为准。
-- 默认 `umask` 可在 `/etc/profile` 或用户 `~/.bashrc` 设为 `027` 或 `077`，减少意外放宽组/世界权限。
+=== Users and Groups
 
-== 用户与访问约定
+- Each researcher should have one *login account* (for example `user_a`), and *shared accounts must be avoided*.
+- Usernames should use lowercase letters, numbers, underscores, or hyphens (for example `user-a`, `user_a`) and start with a letter or underscore, consistent with script validation rules.
+- For shared read access, create group `shared_ro` and add users who need dataset access. Shared directories can use group `shared_ro` with mode `2775` or `0750`, depending on whether group collaboration write access is needed.
+
+
+=== Home and Data Directories
+
+- Recommended permission for `/home/{username}` is `700` (`drwx------`) to prevent traversal or listing by other users.
+- Large data should be placed on a separate disk path such as `/data/{username}`, owned by `chown {username}:{username}` with mode `700`; day-to-day work can remain in home `~`.
+- Recommended default `umask` is `027` or `077` (details in "Octal, special bits, and umask" below). It can be configured in `/etc/profile` or in user shell startup files.
+
+== Login and Access Examples
+
+Users connect directly to the host with system accounts (single port 22). The table matches the `Host` config example below.
 
 #table(
   columns: (auto, auto, auto),
   align: center,
-  table.header([*用户*], [*UID 示例*], [*SSH*]),
+  table.header([*User*], [*Example UID*], [*SSH*]),
   [user_a], [1001], [`ssh user_a@host`],
   [user_b], [1002], [`ssh user_b@host`],
   [user_c], [1003], [`ssh user_c@host`],
   [...], [...], [...],
 )
 
-== 用户访问方式
-
-用户使用系统账户直连宿主机（单端口 22）：
-
 ```bash
-# 在 ~/.ssh/config 中配置（用户 A 示例）
+# Configure in ~/.ssh/config (user A example)
 Host my_server
     HostName 10.10.0.240
     User user_a
@@ -100,22 +118,31 @@ Host my_server
 ssh my_server
 ```
 
-登录后为常规 Linux 会话，工作目录即 `~`，与实验室物理机体验一致。
+After login, the user gets a standard Linux shell session with working directory `~`, similar to a typical lab workstation.
 
-== 数据目录规范
+= Permission Primer
 
-```
-宿主机文件系统：
-/data/
-├── shared/          # 共享数据集（只读或组内只读）
-│   ├── ImageNet/
-│   ├── COCO/
-│   └── ...
-├── user_a/          # 用户A私有（属主 user_a，模式 700）
-├── user_b/
-└── user_c/
-```
+Linux files and directories use *Discretionary Access Control (DAC)*: each object has an *owner* and *group*, and permissions are evaluated for *owner / group / others*. Each class may have read `r`, write `w`, and execute `x`. For files, `r`/`w` control content read/write and `x` controls executability. For directories, `r` allows listing entries, `w` allows creating/removing names, and `x` allows path traversal.
 
-- 用户只能在自己的 UID 下读写属主为自己的目录；无法读取他人的 `/home/*`、`/data/*`（在权限配置正确的前提下）。
-- 共享目录由 root 或 `shared_ro` 组管理，不写 `o+w`；必要时对子目录设粘滞位或专用上传区。
-- 系统目录与软件由 root 安装；用户级 Python/conda 安装在各自主目录，互不覆盖。
+- *Relation to login*: after login, processes run with that user's *UID*. The kernel checks permissions in owner/group/other order and denies access if none match (assuming no ACL or other extensions).
+- *Numeric notation*: octal modes are commonly used; `700` means `rwx------`, and `755` means `rwxr-xr-x`, matching private and shared directory recommendations in this document.
+- *Common commands*: use `chown` to change owner/group and `chmod` to change modes. Default modes for newly created objects are affected by `umask` and special-bit rules, described in "Octal, special bits, and umask" below. Collaboration-related shared modes such as `2775` are discussed in "Users and Groups".
+
+== Symbolic Mode (`ls -l` first column, 10 characters)
+
+The mode string from `ls -l` maps left-to-right as follows (consistent with tools like `stat`):
+
+- *Position 1 (type)*: `-` regular file, `d` directory, `l` symlink, etc. This document mainly uses `-` and `d`.
+- *Positions 2-4, 5-7, 8-10 (three groups of 3)*: represent *user*, *group*, and *other*. Within each group, bits are `r`, `w`, `x`; missing bits are `-`. For example, `rwxr-xr-x` means owner read/write/execute, group read/execute, other read/execute.
+- *Directory `x`*: for directories, without execute permission you usually cannot `cd` into that directory (or resolve paths through it), which is different from having `r` to list entries.
+- *Special execute markers*: besides `x` and `-`, execute positions can show `s`/`S` (setuid in user section, setgid in group section) or `t`/`T` (sticky in other section, commonly on directories). See the next section for octal mapping and meaning.
+
+== Octal, Special Bits, and umask
+
+*Three-digit octal `chmod XYZ`*: from left to right these are *user / group / other*. Each digit is 0-7, formed by `r=4`, `w=2`, `x=1` (missing bits add 0). For example, `7`=`4+2+1` gives `rwx`, and `5`=`4+1` gives `r-x`.
+
+*Four-digit octal `chmod SXYZ`*: the leftmost `S` is the sum of *special bits* - `4` for setuid (on executables, effective user is often file owner), `2` for setgid (on executables, effective group; on directories, new files/subdirectories commonly *inherit directory group*), and `1` for sticky (on directories, only file owner, directory owner, or root can delete/rename others' files; classic example `/tmp`). The trailing `XYZ` are the same as normal permissions. Example: `2775` = `2` (directory setgid) + `775` (`rwxrwxr-x`), often shown symbolically as `drwxrwsr-x`.
+
+*`s`/`S` and `t`/`T` in `ls -l`*: special bits occupy execute positions. If execute is also set, lowercase `s`/`t` is shown; if execute is not set and only special bit exists, uppercase `S`/`T` is shown.
+
+*`umask`*: when processes create files/directories, the kernel applies a mask to default modes. Typical defaults are `0666` for *files* and `0777` for *directories*. Effective mode removes bits that are 1 in `umask`, equivalent to `mode = default & ~umask` (for the lower 9 permission bits). For example, `umask 027` usually yields new files `0640` (`rw-r-----`) and new directories `0750` (`rwxr-x---`); `umask 077` usually yields files `0600` and directories `0700`. Configuring `umask` in `/etc/profile` or user shell startup files reduces accidental exposure to group/others, consistent with recommendations in "Home and Data Directories".
