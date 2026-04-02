@@ -16,8 +16,9 @@
 #   --no-default-user-env    skip shared-software init and apply-default-user-environment.sh
 #   --with-default-user-env  run default user env (default; for clarity only)
 #   --no-join-software       pass through: do not add to SOFTWARE_GROUP or ~/software
-#   --skip-templates         pass through: do not copy from TEMPLATE_DIR
+#   --skip-templates         pass through: do not apply files from TEMPLATE_DIR
 #   --force-templates        pass through: overwrite existing rc files from templates
+#   --skip-existing-templates pass through: keep existing files unchanged (no append)
 #   --install-miniconda      pass through: run template/install_miniconda.sh as user
 #   -h, --help               show help
 #
@@ -84,7 +85,7 @@ while [[ $# -gt 0 ]]; do
       DEFAULT_USER_ENV=1
       shift
       ;;
-    --no-join-software|--skip-templates|--force-templates|--install-miniconda)
+    --no-join-software|--skip-templates|--force-templates|--skip-existing-templates|--install-miniconda)
       APPLY_ARGS+=("$1")
       shift
       ;;

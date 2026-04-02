@@ -27,7 +27,7 @@
 
 - **`/data` 布局**：挂载点 `755`，共享数据集在 `/data/shared`（组 `shared_ro`，默认模式 `2775`，见 [main.typ](main.typ)）
 - **每用户**：主目录与 `/data/<用户名>_data` 为 `700`，可选加入 `shared_ro`
-- **默认**（同一次运行）：`/data/shared_software` 为 `3775`、`software` 组、`~/software` 符号链接，以及从 `template/` 复制的可选文件（`bashrc.sh`、`zshrc.sh`、`config.fish`、`vimrc` / `vimrc.sh`、可选 `install_miniconda.sh`——模板由你维护；脚本只负责复制或执行）
+- **默认**（同一次运行）：`/data/shared_software` 为 `3775`、`software` 组、`~/software` 符号链接，以及来自 `template/` 的可选文件（`bashrc.sh`、`zshrc.sh`、`config.fish`、`vimrc` / `vimrc.sh`、可选 `install_miniconda.sh`）；当目标文件已存在时，默认以“带标记的模板块”追加一次（幂等），也可改为跳过或覆盖
 - **演练**：`DRY_RUN=1` 或 `main.sh --dry-run`
 
 若只需要 main.typ 中的目录布局、不需要默认环境步骤，可使用 `main.sh --no-default-user-env`。
@@ -88,7 +88,11 @@ sudo ./main.sh 用户名 数据目录 [选项…]
 - `--dry-run`：仅打印将要执行的操作
 - `--no-default-user-env`：跳过共享软件初始化、模板与 `~/software` 相关步骤
 - `--with-default-user-env`：显式启用默认环境（与省略上述「关闭」类标志相同）
-- `--no-join-software`、`--skip-templates`、`--force-templates`、`--install-miniconda`：仅在默认用户环境阶段生效
+- `--no-join-software`、`--skip-templates`、`--force-templates`、`--skip-existing-templates`、`--install-miniconda`：仅在默认用户环境阶段生效
+- 模板文件已存在时的行为：
+  - 默认：追加模板内容一次（通过标记实现幂等）
+  - `--skip-existing-templates`：保持已有文件不变
+  - `--force-templates`：用 `template/` 中的文件覆盖目标文件
 
 示例：
 
@@ -122,7 +126,7 @@ sudo ./main.sh frank /data --install-miniconda
 
 ## 8. Shell 启动与 `umask`
 
-对所选登录 shell，`main.sh` 创建用户时可能会追加一次性 `umask` 提示。默认环境运行时，在复制模板后也可能向已有 `~/.bashrc`、`~/.zshrc`、`~/.config/fish/config.fish` 追加相同标记。
+对所选登录 shell，`main.sh` 创建用户时可能会追加一次性 `umask` 提示。默认环境运行时，也会在 `~/.bashrc`、`~/.zshrc`、`~/.config/fish/config.fish` 中按标记追加相同提示（只追加一次）。
 
 ## 9. Docker 冒烟测试
 

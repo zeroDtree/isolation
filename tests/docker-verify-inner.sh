@@ -40,7 +40,7 @@ for u in "${USER_A}" "${USER_B}" "${USER_C}"; do
 done
 
 echo "=== provision ${USER_A} and ${USER_B} (full main.sh) ==="
-./main.sh "${USER_A}" /data --skip-templates
+./main.sh "${USER_A}" /data --install-miniconda
 ./main.sh "${USER_B}" /data --skip-templates
 
 echo "=== doc/main.typ: /data and layout ==="
@@ -118,6 +118,43 @@ for u in "${USER_A}" "${USER_B}"; do
   [[ "$(stat -c '%U:%G' "/home/${u}/software")" == "${u}:${u}" ]] || fail "symlink lchown"
 done
 ok "~/software -> ${sw}, owned by user"
+
+echo "=== miniconda: --install-miniconda for ${USER_A} ==="
+mc_root="/home/${USER_A}/miniconda3"
+mc_conda="${mc_root}/bin/conda"
+[[ -x "${mc_conda}" ]] || fail "missing conda executable: ${mc_conda}"
+[[ ! -e "${mc_root}/miniconda.sh" ]] || fail "installer script should be removed: ${mc_root}/miniconda.sh"
+as_user "${USER_A}" "${mc_conda}" --version >/dev/null || fail "conda is not runnable for ${USER_A}"
+as_user "${USER_A}" test -f "/home/${USER_A}/.condarc" || fail ".condarc not created for ${USER_A}"
+as_user "${USER_A}" grep -Eq "auto_activate:[[:space:]]*false" "/home/${USER_A}/.condarc" || \
+  fail ".condarc should contain auto_activate: false"
+ok "miniconda installed and configured for ${USER_A}"
+
+echo "=== templates: append(default), skip-existing, force overwrite ==="
+bashrc_a="/home/${USER_A}/.bashrc"
+tpl_mark="# >>> isolation template bashrc.sh >>>"
+
+# Default mode appends once and should stay idempotent.
+count_mark="$(grep -cF "${tpl_mark}" "${bashrc_a}" || true)"
+[[ "${count_mark}" == "1" ]] || fail "default append should add one template block, got ${count_mark}"
+./default-user-environment/apply-default-user-environment.sh "${USER_A}" >/dev/null
+count_mark="$(grep -cF "${tpl_mark}" "${bashrc_a}" || true)"
+[[ "${count_mark}" == "1" ]] || fail "re-apply default should keep one template block, got ${count_mark}"
+ok "default template append is one-time and idempotent"
+
+# skip-existing mode should preserve existing file content.
+before_sum="$(sha256sum "${bashrc_a}" | awk '{print $1}')"
+./default-user-environment/apply-default-user-environment.sh "${USER_A}" --skip-existing-templates >/dev/null
+after_sum="$(sha256sum "${bashrc_a}" | awk '{print $1}')"
+[[ "${before_sum}" == "${after_sum}" ]] || fail "--skip-existing-templates should not modify existing .bashrc"
+ok "--skip-existing-templates keeps existing file unchanged"
+
+# force mode should overwrite existing content from template.
+as_user "${USER_A}" bash -lc 'echo "__ISOLATION_FORCE_SENTINEL__" >> ~/.bashrc'
+./default-user-environment/apply-default-user-environment.sh "${USER_A}" --force-templates >/dev/null
+expect_fail "force overwrite removes previous custom sentinel in .bashrc" \
+  grep -q "__ISOLATION_FORCE_SENTINEL__" "${bashrc_a}"
+ok "--force-templates overwrites existing .bashrc content"
 
 echo "=== cleanup ==="
 rm -f "${sw}/file_by_${USER_A}"

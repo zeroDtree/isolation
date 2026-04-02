@@ -27,7 +27,7 @@ It is intentionally simple and does not try to be a full multi-tenant platform.
 
 - **`/data` layout**: mount point `755`, shared datasets under `/data/shared` (group `shared_ro`, default mode `2775` per [doc/en/main.typ](doc/en/main.typ))
 - **Per user**: home and `/data/<username>_data` at mode `700`, optional `shared_ro` membership
-- **By default** (same run as above): `/data/shared_software` at `3775`, `software` group, `~/software` symlink, optional files from `template/` (`bashrc.sh`, `zshrc.sh`, `config.fish`, `vimrc` / `vimrc.sh`, optional `install_miniconda.sh` — you maintain templates; scripts only copy or run them)
+- **By default** (same run as above): `/data/shared_software` at `3775`, `software` group, `~/software` symlink, optional files from `template/` (`bashrc.sh`, `zshrc.sh`, `config.fish`, `vimrc` / `vimrc.sh`, optional `install_miniconda.sh`; existing files are appended once with a marked template block unless you choose skip/force behavior)
 - **Dry run**: `DRY_RUN=1` or `main.sh --dry-run`
 
 Skip the default-environment steps with `main.sh --no-default-user-env` if you only want the main.typ layout.
@@ -88,7 +88,11 @@ Options:
 - `--dry-run`: print actions only
 - `--no-default-user-env`: skip shared-software init and template / `~/software` steps
 - `--with-default-user-env`: explicit default (same as omitting the flag above)
-- `--no-join-software`, `--skip-templates`, `--force-templates`, `--install-miniconda`: only relevant when default user env runs
+- `--no-join-software`, `--skip-templates`, `--force-templates`, `--skip-existing-templates`, `--install-miniconda`: only relevant when default user env runs
+- Template behavior when files already exist:
+  - default: append template content once (idempotent via block markers)
+  - `--skip-existing-templates`: keep existing files unchanged
+  - `--force-templates`: overwrite destination files from `template/`
 
 Examples:
 

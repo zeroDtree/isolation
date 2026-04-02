@@ -7,8 +7,10 @@
 #
 # Options:
 #   --no-join-software     do not add user to SOFTWARE_GROUP or create ~/software link
-#   --skip-templates       do not copy files from TEMPLATE_DIR
-#   --force-templates      overwrite existing destination files when copying templates
+#   --skip-templates          do not apply files from TEMPLATE_DIR
+#   --force-templates         overwrite destination files from templates
+#   --skip-existing-templates keep existing files unchanged (no append)
+#                             default behavior is append template content once
 #   --install-miniconda    run TEMPLATE_DIR/install_miniconda.sh as the user (needs network)
 #   -h, --help             show help
 #
@@ -22,6 +24,7 @@ source "${SCRIPT_DIR}/common.sh"
 JOIN_SOFTWARE=1
 SKIP_TEMPLATES=0
 FORCE_TEMPLATES=0
+SKIP_EXISTING_TEMPLATES=0
 INSTALL_MINICONDA=0
 
 usage() {
@@ -35,6 +38,19 @@ require_root
 USERNAME="${1:?}"
 shift || true
 
+# Minimal containers often have runuser but not sudo.
+as_user() {
+  local u="$1"
+  shift
+  if command -v runuser >/dev/null 2>&1; then
+    run runuser -u "$u" -- "$@"
+  elif command -v sudo >/dev/null 2>&1; then
+    run sudo -u "$u" -- "$@"
+  else
+    die "need runuser or sudo to run commands as another user"
+  fi
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --no-join-software)
@@ -47,6 +63,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --force-templates)
       FORCE_TEMPLATES=1
+      shift
+      ;;
+    --skip-existing-templates)
+      SKIP_EXISTING_TEMPLATES=1
       shift
       ;;
     --install-miniconda)
@@ -86,19 +106,44 @@ else
 fi
 
 if [[ "$SKIP_TEMPLATES" -eq 0 ]] && [[ -d "${TEMPLATE_DIR}" ]]; then
+  if [[ "$FORCE_TEMPLATES" -eq 1 ]] && [[ "$SKIP_EXISTING_TEMPLATES" -eq 1 ]]; then
+    die "--force-templates and --skip-existing-templates are mutually exclusive"
+  fi
   copy_template() {
     local src_name="$1"
     local dst_rel="$2"
     local src="${TEMPLATE_DIR}/${src_name}"
     local dst="${HOME_DIR}/${dst_rel}"
+    local begin_mark="# >>> isolation template ${src_name} >>>"
+    local end_mark="# <<< isolation template ${src_name} <<<"
     [[ -f "$src" ]] || return 0
-    if [[ -e "$dst" ]] && [[ "$FORCE_TEMPLATES" -eq 0 ]]; then
+    run mkdir -p "$(dirname "$dst")"
+    if [[ ! -e "$dst" ]] || [[ "$FORCE_TEMPLATES" -eq 1 ]]; then
+      run cp -f "$src" "$dst"
+      run chown "${USERNAME}:${USERNAME}" "$dst"
+      return 0
+    fi
+    if [[ "$SKIP_EXISTING_TEMPLATES" -eq 1 ]]; then
       echo "[skip] exists: ${dst_rel}"
       return 0
     fi
-    run mkdir -p "$(dirname "$dst")"
-    run cp -f "$src" "$dst"
-    run chown "${USERNAME}:${USERNAME}" "$dst"
+
+    # Default mode: append template content once to existing files.
+    if [[ "${DRY_RUN}" == 1 ]]; then
+      echo "[dry-run] append template block ${src_name} -> ${dst_rel} (if marker missing)"
+      return 0
+    fi
+    if grep -qF "${begin_mark}" "$dst" 2>/dev/null; then
+      echo "[skip] template block exists: ${dst_rel}"
+      return 0
+    fi
+    {
+      echo
+      echo "${begin_mark}"
+      cat "$src"
+      echo "${end_mark}"
+    } >>"$dst"
+    chown "${USERNAME}:${USERNAME}" "$dst"
   }
 
   copy_template "bashrc.sh" ".bashrc"
@@ -143,9 +188,15 @@ if [[ "$INSTALL_MINICONDA" -eq 1 ]]; then
     die "install_miniconda.sh not found: $MC"
   fi
   if [[ "${DRY_RUN}" == 1 ]]; then
-    echo "[dry-run] sudo -u ${USERNAME} bash ${MC}"
+    if command -v runuser >/dev/null 2>&1; then
+      echo "[dry-run] runuser -u ${USERNAME} -- bash ${MC}"
+    elif command -v sudo >/dev/null 2>&1; then
+      echo "[dry-run] sudo -u ${USERNAME} -- bash ${MC}"
+    else
+      die "need runuser or sudo to run commands as another user"
+    fi
   else
-    run sudo -u "$USERNAME" bash "$MC"
+    as_user "$USERNAME" bash "$MC"
   fi
 fi
 
