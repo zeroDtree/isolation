@@ -45,6 +45,8 @@
 ```text
 .
 ├── main.sh                              # 入口（sudo ./main.sh 用户 数据根 …）
+├── remove-user.sh                       # 删除用户、主目录与 DATA_ROOT 下对应 *_data（见 isolation/remove-isolation-user.sh）
+├── fix-migrated-shared-software.sh      # 可选：拷贝后修正组与目录权限（--normalize-perms 为 2755/644/755）
 ├── isolation/                           # 主机与用户开通（由 main.sh 调用）
 ├── default-user-environment/            # 共享软件与用户默认（由 main.sh 调用）
 ├── template/                            # 可选：为新用户复制或执行的文件
@@ -105,6 +107,14 @@ sudo ./main.sh erin /data --no-default-user-env
 sudo ./main.sh frank /data --install-miniconda
 ```
 
+### 删除用户
+
+```bash
+sudo ./remove-user.sh 用户名 数据目录 [选项…]
+```
+
+`数据目录` 须与创建该用户时传给 `main.sh` 的 `DATA_ROOT` 一致（例如 `/data`）。默认使用 `userdel -r` 删除账号、主目录与邮件池，并删除 `/data/<用户名>_data`（或 `isolation.env` 中 `USER_DATA_PREFIX` / `USER_DATA_SUFFIX` 所定路径）。**不会**删除 `/data/shared`、`/data/shared_software` 或其他用户数据。选项：`--dry-run`、`--keep-home`、`--keep-user-data`、`--force`（在支持的环境下为 `userdel -f`）、`--ignore-missing`（账号已不存在时不报错；仍可删除遗留的 `*_data` 目录）。
+
 ## 7. 配置
 
 可用环境变量覆盖默认值；若在当前 shell 中已 export，请使用 `sudo -E ./main.sh …`。
@@ -135,10 +145,11 @@ sudo ./main.sh frank /data --install-miniconda
 ./tests/docker-verify.sh
 ```
 
-在容器内做端到端权限检查（默认镜像 `ubuntu:24.04`；若本地无则拉取）。可选：`./tests/docker-verify.sh 其他镜像` 或设置环境变量 `USER_A` / `USER_B` / `USER_C`。
+在容器内做端到端权限检查（默认镜像 `ubuntu:24.04`；若本地无则拉取）。可选：`./tests/docker-verify.sh 其他镜像` 或设置环境变量 `USER_A` / `USER_B` / `USER_C`。测试里安装 Miniconda 需要镜像内有 `wget` 或 `curl`；可用 `INSTALL_MINICONDA=0 ./tests/docker-verify.sh` 或 `./tests/docker-verify.sh --no-install-miniconda` 跳过。
 
 ## 10. 已知限制与运维说明
 
+- 将软件树拷贝进 `SOFTWARE_ROOT` 后，可执行 `sudo ./fix-migrated-shared-software.sh /data/shared_software/你的目录`，统一属组为 `SOFTWARE_GROUP` 并为子目录设置 setgid（见 [default.typ](default.typ)）；需要批量规范化权限时可加 `--normalize-perms`（目录 `2755`、非可执行 `644`、原先可执行再 `755`）；支持 `DRY_RUN=1`。
 - 隔离基于权限（UID/GID + 模式），不是沙箱
 - root 按设计可访问全部数据
 - 更严格的共享：可在运行 `main.sh` 前通过环境变量设置，例如 `SHARED_MODE=0750`

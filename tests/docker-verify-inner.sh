@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Invoked inside Docker as root; workspace mounted at /work.
 # Validates permissions against doc/main.typ and doc/default.typ (isolation, shared_ro, 3775 sticky).
+# Env: INSTALL_MINICONDA (default 1) — set 0 to skip main.sh --install-miniconda and conda checks.
 set -euo pipefail
 
 USER_A="${USER_A:-iso_a}"
@@ -8,6 +9,14 @@ USER_B="${USER_B:-iso_b}"
 USER_C="${USER_C:-iso_c}"
 USER_PW="${USER_PW:-iso_pw}"
 USER_PW_PASS="${USER_PW_PASS:-TestPw_123!}"
+INSTALL_MINICONDA="${INSTALL_MINICONDA:-1}"
+
+want_miniconda() {
+  case "${INSTALL_MINICONDA}" in
+    0|no|false|NO|FALSE|off|OFF) return 1 ;;
+    *) return 0 ;;
+  esac
+}
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 ok() { echo "OK   $*"; }
@@ -35,14 +44,20 @@ expect_fail() {
 }
 
 cd /work
-chmod +x main.sh isolation/*.sh default-user-environment/*.sh 2>/dev/null || true
+chmod +x main.sh remove-user.sh fix-migrated-shared-software.sh isolation/*.sh default-user-environment/*.sh 2>/dev/null || true
 
 for u in "${USER_A}" "${USER_B}" "${USER_C}" "${USER_PW}"; do
   id "${u}" &>/dev/null && userdel -r "${u}" 2>/dev/null || true
 done
 
 echo "=== provision ${USER_A} and ${USER_B} (full main.sh) ==="
-./main.sh "${USER_A}" /data --install-miniconda
+if want_miniconda; then
+  echo "    (INSTALL_MINICONDA: install miniconda for ${USER_A})"
+  ./main.sh "${USER_A}" /data --install-miniconda
+else
+  echo "    (INSTALL_MINICONDA=0: skip --install-miniconda for ${USER_A})"
+  ./main.sh "${USER_A}" /data
+fi
 ./main.sh "${USER_B}" /data --skip-templates
 
 echo "=== add user with explicit password ==="
@@ -112,6 +127,47 @@ as_user "${USER_A}" mkdir -p "${sw}/dir_by_${USER_A}"
   fail "new dir group want software got $(stat -c '%G' "${sw}/dir_by_${USER_A}")"
 ok "new subdirectory group is software (setgid)"
 
+echo "=== fix-migrated-shared-software.sh (default: chgrp + g+s on dirs) ==="
+MIG_TREE="${sw}/_test_fix_migrate_tree"
+rm -rf "${MIG_TREE}"
+mkdir -p "${MIG_TREE}/sub/deep"
+touch "${MIG_TREE}/readme.txt"
+touch "${MIG_TREE}/sub/run.sh"
+chmod +x "${MIG_TREE}/sub/run.sh"
+chgrp -R root "${MIG_TREE}"
+find "${MIG_TREE}" -type d -exec chmod g-s {} +
+find "${MIG_TREE}" -type d -exec chmod 755 {} +
+
+./fix-migrated-shared-software.sh "${MIG_TREE}"
+[[ "$(stat -c '%G' "${MIG_TREE}/readme.txt")" == "software" ]] || fail "migrated file group should be software"
+[[ "$(stat -c '%G' "${MIG_TREE}/sub")" == "software" ]] || fail "migrated sub dir group should be software"
+perm_mig_sub="$(stat -c '%A' "${MIG_TREE}/sub")"
+[[ "${perm_mig_sub}" == *s* ]] || fail "migrated sub dir should have setgid, got ${perm_mig_sub}"
+as_user "${USER_A}" test -x "${MIG_TREE}/sub/run.sh" || fail "${USER_A} should run preserved executable after default fix"
+ok "fix-migrated-shared-software default: chgrp software + g+s on dirs"
+
+echo "=== fix-migrated-shared-software.sh (--normalize-perms) ==="
+NORM_TREE="${sw}/_test_fix_normalize_tree"
+rm -rf "${NORM_TREE}"
+mkdir -p "${NORM_TREE}/bin"
+echo hi > "${NORM_TREE}/data.txt"
+printf '#!/bin/sh\necho x\n' > "${NORM_TREE}/bin/tool"
+chmod +x "${NORM_TREE}/bin/tool"
+chmod 777 "${NORM_TREE}/bin"
+chgrp -R root "${NORM_TREE}"
+find "${NORM_TREE}" -type d -exec chmod g-s {} +
+
+./fix-migrated-shared-software.sh --normalize-perms "${NORM_TREE}"
+[[ "$(stat -c '%a' "${NORM_TREE}/bin")" == "2755" ]] || fail "norm bin dir want 2755 got $(stat -c '%a' "${NORM_TREE}/bin")"
+[[ "$(stat -c '%a' "${NORM_TREE}/data.txt")" == "644" ]] || fail "norm data want 644 got $(stat -c '%a' "${NORM_TREE}/data.txt")"
+[[ "$(stat -c '%a' "${NORM_TREE}/bin/tool")" == "755" ]] || fail "norm tool want 755 got $(stat -c '%a' "${NORM_TREE}/bin/tool")"
+as_user "${USER_A}" test -x "${NORM_TREE}/bin/tool" || fail "${USER_A} should execute normalized tool"
+ok "fix-migrated-shared-software --normalize-perms 2755/644/755"
+
+echo "=== fix-migrated-shared-software.sh rejects path outside SOFTWARE_ROOT ==="
+expect_fail "fix script rejects /tmp" \
+  ./fix-migrated-shared-software.sh /tmp
+
 echo "=== user without software: cannot create in shared_software ==="
 useradd -m -s /bin/bash "${USER_C}" 2>/dev/null || true
 usermod -aG shared_ro "${USER_C}" || true
@@ -129,16 +185,20 @@ for u in "${USER_A}" "${USER_B}"; do
 done
 ok "~/software -> ${sw}, owned by user"
 
-echo "=== miniconda: --install-miniconda for ${USER_A} ==="
-mc_root="/home/${USER_A}/miniconda3"
-mc_conda="${mc_root}/bin/conda"
-[[ -x "${mc_conda}" ]] || fail "missing conda executable: ${mc_conda}"
-[[ ! -e "${mc_root}/miniconda.sh" ]] || fail "installer script should be removed: ${mc_root}/miniconda.sh"
-as_user "${USER_A}" "${mc_conda}" --version >/dev/null || fail "conda is not runnable for ${USER_A}"
-as_user "${USER_A}" test -f "/home/${USER_A}/.condarc" || fail ".condarc not created for ${USER_A}"
-as_user "${USER_A}" grep -Eq "auto_activate:[[:space:]]*false" "/home/${USER_A}/.condarc" || \
-  fail ".condarc should contain auto_activate: false"
-ok "miniconda installed and configured for ${USER_A}"
+if want_miniconda; then
+  echo "=== miniconda: --install-miniconda for ${USER_A} ==="
+  mc_root="/home/${USER_A}/miniconda3"
+  mc_conda="${mc_root}/bin/conda"
+  [[ -x "${mc_conda}" ]] || fail "missing conda executable: ${mc_conda}"
+  [[ ! -e "${mc_root}/miniconda.sh" ]] || fail "installer script should be removed: ${mc_root}/miniconda.sh"
+  as_user "${USER_A}" "${mc_conda}" --version >/dev/null || fail "conda is not runnable for ${USER_A}"
+  as_user "${USER_A}" test -f "/home/${USER_A}/.condarc" || fail ".condarc not created for ${USER_A}"
+  as_user "${USER_A}" grep -Eq "auto_activate:[[:space:]]*false" "/home/${USER_A}/.condarc" || \
+    fail ".condarc should contain auto_activate: false"
+  ok "miniconda installed and configured for ${USER_A}"
+else
+  echo "=== miniconda: skipped (INSTALL_MINICONDA=0) ==="
+fi
 
 echo "=== templates: append(default), skip-existing, force overwrite ==="
 bashrc_a="/home/${USER_A}/.bashrc"
@@ -166,9 +226,17 @@ expect_fail "force overwrite removes previous custom sentinel in .bashrc" \
   grep -q "__ISOLATION_FORCE_SENTINEL__" "${bashrc_a}"
 ok "--force-templates overwrites existing .bashrc content"
 
+echo "=== remove-user.sh ==="
+expect_fail "remove-user rejects relative DATA_DIR" \
+  ./remove-user.sh "${USER_A}" relative/path 2>/dev/null
+./remove-user.sh nosuchuser_zz /data --ignore-missing
+ok "remove-user --ignore-missing when account absent"
+./remove-user.sh nosuchuser_zz /data --dry-run --ignore-missing
+ok "remove-user dry-run with --ignore-missing"
+
 echo "=== cleanup ==="
 rm -f "${sw}/file_by_${USER_A}"
-rm -rf "${sw}/dir_by_${USER_A}"
+rm -rf "${sw}/dir_by_${USER_A}" "${sw}/_test_fix_migrate_tree" "${sw}/_test_fix_normalize_tree"
 userdel -r "${USER_C}" 2>/dev/null || true
 userdel -r "${USER_A}" 2>/dev/null || true
 userdel -r "${USER_B}" 2>/dev/null || true

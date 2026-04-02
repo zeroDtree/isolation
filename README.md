@@ -45,6 +45,8 @@ If you need stronger isolation or resource control, add those mechanisms separat
 ```text
 .
 ├── main.sh                              # entry point (sudo ./main.sh USER DATA_ROOT …)
+├── remove-user.sh                       # remove user + home + DATA_ROOT/<user>_data (see isolation/remove-isolation-user.sh)
+├── fix-migrated-shared-software.sh      # optional: chgrp + dir perms after copy (--normalize-perms for 2755/644/755)
 ├── isolation/                           # host + user provisioning (used by main.sh)
 ├── default-user-environment/            # shared software + user defaults (used by main.sh)
 ├── template/                            # optional files copied or executed for new users
@@ -105,6 +107,14 @@ sudo ./main.sh erin /data --no-default-user-env
 sudo ./main.sh frank /data --install-miniconda
 ```
 
+### Remove a user
+
+```bash
+sudo ./remove-user.sh USERNAME DATA_DIR [options]
+```
+
+`DATA_DIR` must match the `DATA_ROOT` used when the user was created (for example `/data`). By default this removes the account with `userdel -r` (home and mail spool) and deletes `/data/<username>_data` (or the configured `USER_DATA_PREFIX` / `USER_DATA_SUFFIX`). It does **not** remove `/data/shared`, `/data/shared_software`, or other users. Options: `--dry-run`, `--keep-home`, `--keep-user-data`, `--force` (passes `userdel -f` where supported), `--ignore-missing` (no error if the account is already gone; can still drop the data dir).
+
 ## 7. Configuration
 
 Override defaults with environment variables; use `sudo -E ./main.sh …` if you exported them in your shell.
@@ -135,10 +145,11 @@ For the chosen login shell, `main.sh`’s user-creation step may append a one-ti
 ./tests/docker-verify.sh
 ```
 
-End-to-end permission checks inside a container (default image `ubuntu:24.04`; pull if missing). Optional: `./tests/docker-verify.sh OTHER_IMAGE` or set `USER_A` / `USER_B` / `USER_C`.
+End-to-end permission checks inside a container (default image `ubuntu:24.04`; pull if missing). Optional: `./tests/docker-verify.sh OTHER_IMAGE` or set `USER_A` / `USER_B` / `USER_C`. Miniconda in the test needs `wget` or `curl` in the image; skip it with `INSTALL_MINICONDA=0 ./tests/docker-verify.sh` or `./tests/docker-verify.sh --no-install-miniconda`.
 
 ## 10. Known limits and operational notes
 
+- After copying a tree into `SOFTWARE_ROOT`, run `sudo ./fix-migrated-shared-software.sh /data/shared_software/yourtree` so the subtree uses `SOFTWARE_GROUP` and directory setgid (see [doc/en/default.typ](doc/en/default.typ)); add `--normalize-perms` for dirs `2755`, non-executables `644`, then prior executables `755`; `DRY_RUN=1` is supported.
 - Isolation is permission-based (UID/GID + modes), not a sandbox
 - Root can access all data by design
 - Tighter sharing: e.g. `SHARED_MODE=0750` via env before `main.sh`
