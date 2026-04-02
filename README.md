@@ -1,26 +1,38 @@
 # Isolation
 
-Lightweight isolation scripts for shared Linux research servers.
+Chinese documentation: [doc/zh/README.md](doc/zh/README.md).
 
-This repository focuses on practical account-and-permission isolation:
+- [Isolation](#isolation)
+  - [1. What it does](#1-what-it-does)
+  - [2. What it does not do](#2-what-it-does-not-do)
+  - [3. Repository layout](#3-repository-layout)
+  - [4. Prerequisites](#4-prerequisites)
+  - [5. Quick start](#5-quick-start)
+  - [6. Usage (`main.sh`)](#6-usage-mainsh)
+  - [7. Configuration](#7-configuration)
+    - [7.1. `isolation/isolation.env`](#71-isolationisolationenv)
+    - [7.2. `default-user-environment/config.env`](#72-default-user-environmentconfigenv)
+  - [8. Shell startup and `umask`](#8-shell-startup-and-umask)
+  - [9. Docker smoke test](#9-docker-smoke-test)
+  - [10. Known limits and operational notes](#10-known-limits-and-operational-notes)
+  - [11. Design reference](#11-design-reference)
 
-1. Initialize host data layout (for example `/data` and `/data/shared`)
-2. Create isolated users with private data directories (default `/data/<username>_data`)
+---
+
+Lightweight isolation scripts for shared Linux research servers: one entry point, **`main.sh`**, provisions host layout, an isolated user, and (by default) the collaborative software tree and per-user defaults described in [doc/en/main.typ](doc/en/main.typ) and [doc/en/default.typ](doc/en/default.typ).
 
 It is intentionally simple and does not try to be a full multi-tenant platform.
 
-## What it does
+## 1. What it does
 
-- Initializes host-side layout with `scripts/init-host.sh`
-- Creates users with `scripts/add-isolation-user.sh`, including:
-  - Login shell setup
-  - Home directory permission `700`
-  - Private data directory permission `700`
-  - Optional shared group membership (`shared_ro`, enabled by default)
-- Runs both steps in one command via `main.sh`
-- Supports dry run mode via `DRY_RUN=1` or `--dry-run`
+- **`/data` layout**: mount point `755`, shared datasets under `/data/shared` (group `shared_ro`, default mode `2775` per [doc/en/main.typ](doc/en/main.typ))
+- **Per user**: home and `/data/<username>_data` at mode `700`, optional `shared_ro` membership
+- **By default** (same run as above): `/data/shared_software` at `3775`, `software` group, `~/software` symlink, optional files from `template/` (`bashrc.sh`, `zshrc.sh`, `config.fish`, `vimrc` / `vimrc.sh`, optional `install_miniconda.sh` — you maintain templates; scripts only copy or run them)
+- **Dry run**: `DRY_RUN=1` or `main.sh --dry-run`
 
-## What it does not do
+Skip the default-environment steps with `main.sh --no-default-user-env` if you only want the main.typ layout.
+
+## 2. What it does not do
 
 - No CPU, memory, or process limits (no cgroup/quota integration)
 - No container isolation (not Docker/LXC based)
@@ -28,62 +40,55 @@ It is intentionally simple and does not try to be a full multi-tenant platform.
 
 If you need stronger isolation or resource control, add those mechanisms separately.
 
-## Repository layout
+## 3. Repository layout
 
 ```text
 .
-├── main.sh                         # One-shot entry: init + user creation
-├── scripts/
-│   ├── isolation.env               # Default config values (overridable)
-│   ├── isolation-common.sh         # Shared helper functions
-│   ├── init-host.sh                # Initialize /data and /data/shared
-│   └── add-isolation-user.sh       # Create one isolated user
-└── doc/main.typ                    # Design notes and permission model
+├── main.sh                              # entry point (sudo ./main.sh USER DATA_ROOT …)
+├── isolation/                           # host + user provisioning (used by main.sh)
+├── default-user-environment/            # shared software + user defaults (used by main.sh)
+├── template/                            # optional files copied or executed for new users
+├── tests/                               # ./tests/docker-verify.sh — optional smoke test
+└── doc/
+    ├── en/
+    │   ├── main.typ
+    │   └── default.typ
+    └── zh/
+        ├── README.md
+        ├── main.typ
+        └── default.typ
 ```
 
-## Prerequisites
+## 4. Prerequisites
 
 - Linux host
-- Root privileges (scripts enforce this; use `sudo`)
-- Core system tools such as `bash`, `useradd`, `usermod`, `groupadd`
+- Root privileges (`sudo`)
+- `bash`, `useradd`, `usermod`, `groupadd`
 
-## Quick start
-
-### One-shot setup (recommended)
+## 5. Quick start
 
 ```bash
 sudo ./main.sh alice /data
 ```
 
-This performs:
+This initializes `/data` and `/data/shared`, creates `alice` with `/data/alice_data`, and applies the default shared-software environment unless you add `--no-default-user-env`.
 
-- Host layout initialization at `/data` and `/data/shared`
-- User creation for `alice`
-- Private data directory creation at `/data/alice_data` (default naming)
-
-### Step-by-step setup
-
-```bash
-# Step 1: initialize host directories and shared group
-sudo DATA_ROOT=/data ./scripts/init-host.sh
-
-# Step 2: create one isolated user
-sudo DATA_ROOT=/data ./scripts/add-isolation-user.sh alice
-```
-
-## `main.sh` usage
+## 6. Usage (`main.sh`)
 
 ```bash
 sudo ./main.sh USERNAME DATA_DIR [options]
 ```
 
+`DATA_DIR` must be an absolute path (for example `/data`); it becomes `DATA_ROOT` for that run.
+
 Options:
 
-- `--join-shared-ro`: add user to shared group (default)
-- `--no-join-shared-ro`: do not add user to shared group
-- `--uid UID`: set explicit UID
-- `--shell PATH`: set login shell
-- `--dry-run`: print commands only, do not execute
+- `--join-shared-ro` / `--no-join-shared-ro`: add user to `shared_ro` (default: join)
+- `--uid UID`, `--shell PATH`
+- `--dry-run`: print actions only
+- `--no-default-user-env`: skip shared-software init and template / `~/software` steps
+- `--with-default-user-env`: explicit default (same as omitting the flag above)
+- `--no-join-software`, `--skip-templates`, `--force-templates`, `--install-miniconda`: only relevant when default user env runs
 
 Examples:
 
@@ -91,55 +96,50 @@ Examples:
 sudo ./main.sh bob /mnt/research-data --no-join-shared-ro
 sudo ./main.sh carol /data --uid 2301 --shell /bin/zsh
 sudo ./main.sh dave /data --dry-run
+sudo ./main.sh erin /data --no-default-user-env
+sudo ./main.sh frank /data --install-miniconda
 ```
 
-## Configuration (`scripts/isolation.env`)
+## 7. Configuration
 
-Defaults can be overridden via environment variables.
+Override defaults with environment variables; use `sudo -E ./main.sh …` if you exported them in your shell.
 
-- `DATA_ROOT` (default: `/data`)
-- `SHARED_GROUP` (default: `shared_ro`)
-- `SHARED_MODE` (default: `2775`)
-- `DEFAULT_LOGIN_SHELL` (default: `/bin/bash`)
-- `USER_DATA_PREFIX` (default: empty)
-- `USER_DATA_SUFFIX` (default: `_data`)
-- `USER_UMASK_HINT` (default: `027`)
-- `DRY_RUN` (default: `0`)
-- `ISOLATION_BASHRC_MARK` (default marker text for one-time append check)
+### 7.1. `isolation/isolation.env`
 
-Examples:
+- `DATA_ROOT` (default `/data` — usually set by `main.sh` via `DATA_DIR`)
+- `SHARED_GROUP`, `SHARED_MODE` (defaults `shared_ro`, `2775`)
+- `DEFAULT_LOGIN_SHELL`, `USER_DATA_PREFIX`, `USER_DATA_SUFFIX` (`_data`)
+- `USER_UMASK_HINT`, `DRY_RUN`, `ISOLATION_BASHRC_MARK`
+
+### 7.2. `default-user-environment/config.env`
+
+Loaded when the default-user-env phase runs; extends `isolation.env` with:
+
+- `SOFTWARE_ROOT`, `SOFTWARE_GROUP`, `SOFTWARE_MODE` (`3775`)
+- `USER_SOFTWARE_LINK_NAME` (`software`)
+- `TEMPLATE_DIR` (repo `template/` by default)
+- `ENABLE_SOFTWARE_AREA` (`1`; set `0` to disable that phase)
+
+## 8. Shell startup and `umask`
+
+For the chosen login shell, `main.sh`’s user-creation step may append a one-time `umask` hint. When the default environment runs, the same marker can be appended to existing `~/.bashrc`, `~/.zshrc`, and `~/.config/fish/config.fish` after any template copies.
+
+## 9. Docker smoke test
 
 ```bash
-sudo DATA_ROOT=/srv/data SHARED_MODE=0750 ./scripts/init-host.sh
-sudo DATA_ROOT=/srv/data USER_DATA_SUFFIX=_workspace ./scripts/add-isolation-user.sh erin
+./tests/docker-verify.sh
 ```
 
-## Shell startup file behavior for `umask`
+End-to-end permission checks inside a container (default image `ubuntu:24.04`; pull if missing). Optional: `./tests/docker-verify.sh OTHER_IMAGE` or set `USER_A` / `USER_B` / `USER_C`.
 
-When creating a user, the script appends a one-time `umask` hint block only if the marker is missing:
+## 10. Known limits and operational notes
 
-- Bash users: `~/.bashrc`
-- Zsh users: `~/.zshrc`
-- Fish users: `~/.config/fish/config.fish`
+- Isolation is permission-based (UID/GID + modes), not a sandbox
+- Root can access all data by design
+- Tighter sharing: e.g. `SHARED_MODE=0750` via env before `main.sh`
+- New supplementary groups need a new session (`newgrp` or re-login) before `id` shows them
 
-In dry-run mode, it only prints what would be appended.
+## 11. Design reference
 
-## Verification checklist
-
-After user creation, verify:
-
-- `ls -ld /data /data/shared /data/<user>_data`
-- `id <user>` to confirm `shared_ro` membership policy
-- Access checks from another non-root account:
-  - `<user>` home directory should be inaccessible
-  - `<user>` private data directory should be inaccessible
-
-## Known limits and operational notes
-
-- Isolation is permission-based (UID/GID + file modes), not sandbox/container based
-- Root can access all user data by design
-- `SHARED_MODE=2775` allows group collaboration writes; for stricter read-only sharing, use tighter modes such as `0750` and control group write paths separately
-
-## Design reference
-
-For background and rationale, see [doc/main.typ](doc/main.typ).
+- [doc/en/main.typ](doc/en/main.typ) — account and directory isolation
+- [doc/en/default.typ](doc/en/default.typ) — collaborative software directory, templates, optional Miniconda

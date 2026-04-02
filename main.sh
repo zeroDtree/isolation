@@ -2,6 +2,7 @@
 # One-shot setup wrapper:
 #   1) Initialize host layout under DATA_ROOT
 #   2) Create one isolated user
+#   3) Init shared software tree (doc/default.typ) and apply templates / ~/software link
 #
 # Usage:
 #   sudo ./main.sh USERNAME DATA_DIR [options]
@@ -12,21 +13,31 @@
 #   --uid UID                explicit UID for useradd
 #   --shell PATH             login shell (default from isolation.env)
 #   --dry-run                print commands only (no changes)
+#   --no-default-user-env    skip shared-software init and apply-default-user-environment.sh
+#   --with-default-user-env  run default user env (default; for clarity only)
+#   --no-join-software       pass through: do not add to SOFTWARE_GROUP or ~/software
+#   --skip-templates         pass through: do not copy from TEMPLATE_DIR
+#   --force-templates        pass through: overwrite existing rc files from templates
+#   --install-miniconda      pass through: run template/install_miniconda.sh as user
 #   -h, --help               show help
 #
 # Examples:
 #   sudo ./main.sh alice /data
 #   sudo ./main.sh bob /mnt/research-data --no-join-shared-ro
 #   sudo ./main.sh carol /data --uid 2301 --shell /bin/zsh
+#   sudo ./main.sh dave /data --no-default-user-env
+#   sudo ./main.sh eve /data --install-miniconda
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INIT_SCRIPT="${SCRIPT_DIR}/scripts/init-host.sh"
-ADD_USER_SCRIPT="${SCRIPT_DIR}/scripts/add-isolation-user.sh"
+INIT_SCRIPT="${SCRIPT_DIR}/isolation/init-host.sh"
+ADD_USER_SCRIPT="${SCRIPT_DIR}/isolation/add-isolation-user.sh"
+INIT_SHARED_SOFTWARE="${SCRIPT_DIR}/default-user-environment/init-shared-software-layout.sh"
+APPLY_DEFAULT_ENV="${SCRIPT_DIR}/default-user-environment/apply-default-user-environment.sh"
 
 usage() {
-  sed -n '1,28p' "$0" | tail -n +2
+  sed -n '1,42p' "$0" | tail -n +2
   exit 0
 }
 
@@ -40,6 +51,8 @@ JOIN_SHARED_RO=1
 DRY_RUN_FLAG=0
 EXPLICIT_UID=""
 SHELL_PATH=""
+DEFAULT_USER_ENV=1
+APPLY_ARGS=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -63,6 +76,18 @@ while [[ $# -gt 0 ]]; do
       DRY_RUN_FLAG=1
       shift
       ;;
+    --no-default-user-env)
+      DEFAULT_USER_ENV=0
+      shift
+      ;;
+    --with-default-user-env)
+      DEFAULT_USER_ENV=1
+      shift
+      ;;
+    --no-join-software|--skip-templates|--force-templates|--install-miniconda)
+      APPLY_ARGS+=("$1")
+      shift
+      ;;
     -h|--help)
       usage
       ;;
@@ -80,6 +105,10 @@ fi
 
 [[ -x "${INIT_SCRIPT}" ]] || { echo "error: missing ${INIT_SCRIPT}" >&2; exit 1; }
 [[ -x "${ADD_USER_SCRIPT}" ]] || { echo "error: missing ${ADD_USER_SCRIPT}" >&2; exit 1; }
+if [[ "${DEFAULT_USER_ENV}" -eq 1 ]]; then
+  [[ -x "${INIT_SHARED_SOFTWARE}" ]] || { echo "error: missing ${INIT_SHARED_SOFTWARE}" >&2; exit 1; }
+  [[ -x "${APPLY_DEFAULT_ENV}" ]] || { echo "error: missing ${APPLY_DEFAULT_ENV}" >&2; exit 1; }
+fi
 
 ADD_ARGS=("${USERNAME}")
 [[ "${JOIN_SHARED_RO}" -eq 1 ]] && ADD_ARGS+=("--join-shared-ro")
@@ -90,10 +119,26 @@ if [[ "${DRY_RUN_FLAG}" -eq 1 ]]; then
   export DRY_RUN=1
 fi
 
-echo "[step 1/2] init host layout at DATA_ROOT=${DATA_DIR}"
+if [[ "${DEFAULT_USER_ENV}" -eq 1 ]]; then
+  _TOTAL=4
+else
+  _TOTAL=2
+fi
+
+echo "[step 1/${_TOTAL}] init host layout at DATA_ROOT=${DATA_DIR}"
 DATA_ROOT="${DATA_DIR}" "${INIT_SCRIPT}"
 
-echo "[step 2/2] create isolated user ${USERNAME}"
+echo "[step 2/${_TOTAL}] create isolated user ${USERNAME}"
 DATA_ROOT="${DATA_DIR}" "${ADD_USER_SCRIPT}" "${ADD_ARGS[@]}"
+
+if [[ "${DEFAULT_USER_ENV}" -eq 1 ]]; then
+  echo "[step 3/${_TOTAL}] init shared software layout (doc/default.typ)"
+  "${INIT_SHARED_SOFTWARE}"
+
+  echo "[step 4/${_TOTAL}] apply default user environment for ${USERNAME}"
+  "${APPLY_DEFAULT_ENV}" "${USERNAME}" "${APPLY_ARGS[@]}"
+else
+  echo "[skip] default user environment (--no-default-user-env)"
+fi
 
 echo "ok: setup complete for user=${USERNAME}, data_root=${DATA_DIR}"
