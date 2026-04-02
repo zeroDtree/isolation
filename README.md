@@ -8,7 +8,7 @@ Chinese documentation: [doc/zh/README.md](doc/zh/README.md).
   - [3. Repository layout](#3-repository-layout)
   - [4. Prerequisites](#4-prerequisites)
   - [5. Quick start](#5-quick-start)
-  - [6. Usage (`main.sh`)](#6-usage-mainsh)
+  - [6. Usage (`add-user.sh`)](#6-usage-add-usersh)
   - [7. Configuration](#7-configuration)
     - [7.1. `isolation/isolation.env`](#71-isolationisolationenv)
     - [7.2. `default-user-environment/config.env`](#72-default-user-environmentconfigenv)
@@ -19,7 +19,7 @@ Chinese documentation: [doc/zh/README.md](doc/zh/README.md).
 
 ---
 
-Lightweight isolation scripts for shared Linux research servers: one entry point, **`main.sh`**, provisions host layout, an isolated user, and (by default) the collaborative software tree and per-user defaults described in [doc/en/main.typ](doc/en/main.typ) and [doc/en/default.typ](doc/en/default.typ).
+Lightweight isolation scripts for shared Linux research servers: one entry point, **`add-user.sh`**, provisions host layout, an isolated user, and (by default) the collaborative software tree and per-user defaults described in [doc/en/main.typ](doc/en/main.typ) and [doc/en/default.typ](doc/en/default.typ).
 
 It is intentionally simple and does not try to be a full multi-tenant platform.
 
@@ -28,9 +28,9 @@ It is intentionally simple and does not try to be a full multi-tenant platform.
 - **`/data` layout**: mount point `755`, shared datasets under `${DATA_ROOT}/${SHARED_DATA_DIR_NAME}` (default `/data/shared_data`, group `shared_ro`, default mode `3775` per [doc/en/main.typ](doc/en/main.typ))
 - **Per user**: home and `/data/<username>_data` at mode `700`, optional `shared_ro` membership
 - **By default** (same run as above): `/data/shared_software` at `3775`, `software` group, `~/software` symlink, optional files from `template/` (`bashrc.sh`, `zshrc.sh`, `config.fish`, `vimrc` / `vimrc.sh`, optional `install_miniconda.sh`; existing files are appended once with a marked template block unless you choose skip/force behavior)
-- **Dry run**: `DRY_RUN=1` or `main.sh --dry-run`
+- **Dry run**: `DRY_RUN=1` or `add-user.sh --dry-run`
 
-Skip the default-environment steps with `main.sh --no-default-user-env` if you only want the main.typ layout.
+Skip the default-environment steps with `add-user.sh --no-default-user-env` if you only want the main.typ layout.
 
 ## 2. What it does not do
 
@@ -44,11 +44,11 @@ If you need stronger isolation or resource control, add those mechanisms separat
 
 ```text
 .
-├── main.sh                              # entry point (sudo ./main.sh USER DATA_ROOT …)
+├── add-user.sh                              # entry point (sudo ./add-user.sh USER DATA_ROOT …)
 ├── remove-user.sh                       # remove user + home + DATA_ROOT/<user>_data (see isolation/remove-isolation-user.sh)
 ├── fix-migrated-shared-software.sh      # optional: chgrp + dir perms after copy (--normalize-perms for 2755/644/755)
-├── isolation/                           # host + user provisioning (used by main.sh)
-├── default-user-environment/            # shared software + user defaults (used by main.sh)
+├── isolation/                           # host + user provisioning (used by add-user.sh)
+├── default-user-environment/            # shared software + user defaults (used by add-user.sh)
 ├── template/                            # optional files copied or executed for new users
 ├── tests/                               # ./tests/docker-verify.sh — optional smoke test
 └── doc/
@@ -70,15 +70,15 @@ If you need stronger isolation or resource control, add those mechanisms separat
 ## 5. Quick start
 
 ```bash
-sudo ./main.sh alice /data
+sudo ./add-user.sh alice /data
 ```
 
 This initializes `/data` and the shared data directory (default `/data/shared_data`), creates `alice` with `/data/alice_data`, and applies the default shared-software environment unless you add `--no-default-user-env`.
 
-## 6. Usage (`main.sh`)
+## 6. Usage (`add-user.sh`)
 
 ```bash
-sudo ./main.sh USERNAME DATA_DIR [options]
+sudo ./add-user.sh USERNAME DATA_DIR [options]
 ```
 
 `DATA_DIR` must be an absolute path (for example `/data`); it becomes `DATA_ROOT` for that run.
@@ -99,12 +99,12 @@ Options:
 Examples:
 
 ```bash
-sudo ./main.sh bob /mnt/research-data --no-join-shared-ro
-sudo ./main.sh alice /data --password 'S3cret!'
-sudo ./main.sh carol /data --uid 2301 --shell /bin/zsh
-sudo ./main.sh dave /data --dry-run
-sudo ./main.sh erin /data --no-default-user-env
-sudo ./main.sh frank /data --install-miniconda
+sudo ./add-user.sh bob /mnt/research-data --no-join-shared-ro
+sudo ./add-user.sh alice /data --password 'S3cret!'
+sudo ./add-user.sh carol /data --uid 2301 --shell /bin/zsh
+sudo ./add-user.sh dave /data --dry-run
+sudo ./add-user.sh erin /data --no-default-user-env
+sudo ./add-user.sh frank /data --install-miniconda
 ```
 
 ### Remove a user
@@ -117,11 +117,11 @@ sudo ./remove-user.sh USERNAME DATA_DIR [options]
 
 ## 7. Configuration
 
-Override defaults with environment variables; use `sudo -E ./main.sh …` if you exported them in your shell.
+Override defaults with environment variables; use `sudo -E ./add-user.sh …` if you exported them in your shell.
 
 ### 7.1. `isolation/isolation.env`
 
-- `DATA_ROOT` (default `/data` — usually set by `main.sh` via `DATA_DIR`)
+- `DATA_ROOT` (default `/data` — usually set by `add-user.sh` via `DATA_DIR`)
 - `SHARED_DATA_DIR_NAME` (default `shared_data`), `SHARED_DATA_PATH` (default `${DATA_ROOT}/${SHARED_DATA_DIR_NAME}`), `SHARED_GROUP`, `SHARED_DATA_MODE` (defaults `shared_ro`, `3775`)
 - `DEFAULT_LOGIN_SHELL`, `USER_DATA_PREFIX`, `USER_DATA_SUFFIX` (`_data`)
 - `USER_UMASK_HINT`, `DRY_RUN`, `ISOLATION_BASHRC_MARK`
@@ -137,7 +137,7 @@ Loaded when the default-user-env phase runs; extends `isolation.env` with:
 
 ## 8. Shell startup and `umask`
 
-For the chosen login shell, `main.sh`’s user-creation step may append a one-time `umask` hint. When the default environment runs, the same marker can be appended to existing `~/.bashrc`, `~/.zshrc`, and `~/.config/fish/config.fish` after any template copies.
+For the chosen login shell, `add-user.sh`’s user-creation step may append a one-time `umask` hint. When the default environment runs, the same marker can be appended to existing `~/.bashrc`, `~/.zshrc`, and `~/.config/fish/config.fish` after any template copies.
 
 ## 9. Docker smoke test
 
@@ -152,7 +152,7 @@ End-to-end permission checks inside a container (default image `ubuntu:24.04`; p
 - After copying a tree into `SOFTWARE_ROOT`, run `sudo ./fix-migrated-shared-software.sh /data/shared_software/yourtree` so the subtree uses `SOFTWARE_GROUP` and directory setgid (see [doc/en/default.typ](doc/en/default.typ)); add `--normalize-perms` for dirs `2755`, non-executables `644`, then prior executables `755`; `DRY_RUN=1` is supported.
 - Isolation is permission-based (UID/GID + modes), not a sandbox
 - Root can access all data by design
-- Tighter sharing: e.g. `SHARED_DATA_MODE=0750` via env before `main.sh`
+- Tighter sharing: e.g. `SHARED_DATA_MODE=0750` via env before `add-user.sh`
 - New supplementary groups need a new session (`newgrp` or re-login) before `id` shows them
 
 ## 11. Design reference

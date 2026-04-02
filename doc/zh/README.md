@@ -8,7 +8,7 @@
   - [3. 仓库结构](#3-仓库结构)
   - [4. 前置条件](#4-前置条件)
   - [5. 快速开始](#5-快速开始)
-  - [6. 用法（main.sh）](#6-用法mainsh)
+  - [6. 用法（add-user.sh）](#6-用法add-usersh)
   - [7. 配置](#7-配置)
     - [7.1. `isolation/isolation.env`](#71-isolationisolationenv)
     - [7.2. `default-user-environment/config.env`](#72-default-user-environmentconfigenv)
@@ -19,7 +19,7 @@
 
 ---
 
-面向共享 Linux 科研服务器的轻量隔离脚本：单一入口 **`main.sh`** 负责初始化主机目录、隔离用户，并在默认情况下按 [main.typ](main.typ) 与 [default.typ](default.typ) 所述配置协作软件树与每用户默认环境。
+面向共享 Linux 科研服务器的轻量隔离脚本：单一入口 **`add-user.sh`** 负责初始化主机目录、隔离用户，并在默认情况下按 [main.typ](main.typ) 与 [default.typ](default.typ) 所述配置协作软件树与每用户默认环境。
 
 刻意保持简单，不追求完整多租户平台。
 
@@ -28,9 +28,9 @@
 - **`/data` 布局**：挂载点 `755`，共享数据集在 `${DATA_ROOT}/${SHARED_DATA_DIR_NAME}`（默认 `/data/shared_data`，组 `shared_ro`，默认模式 `3775`，见 [main.typ](main.typ)）
 - **每用户**：主目录与 `/data/<用户名>_data` 为 `700`，可选加入 `shared_ro`
 - **默认**（同一次运行）：`/data/shared_software` 为 `3775`、`software` 组、`~/software` 符号链接，以及来自 `template/` 的可选文件（`bashrc.sh`、`zshrc.sh`、`config.fish`、`vimrc` / `vimrc.sh`、可选 `install_miniconda.sh`）；当目标文件已存在时，默认以“带标记的模板块”追加一次（幂等），也可改为跳过或覆盖
-- **演练**：`DRY_RUN=1` 或 `main.sh --dry-run`
+- **演练**：`DRY_RUN=1` 或 `add-user.sh --dry-run`
 
-若只需要 main.typ 中的目录布局、不需要默认环境步骤，可使用 `main.sh --no-default-user-env`。
+若只需要 main.typ 中的目录布局、不需要默认环境步骤，可使用 `add-user.sh --no-default-user-env`。
 
 ## 2. 本仓库不做什么
 
@@ -44,11 +44,11 @@
 
 ```text
 .
-├── main.sh                              # 入口（sudo ./main.sh 用户 数据根 …）
+├── add-user.sh                              # 入口（sudo ./add-user.sh 用户 数据根 …）
 ├── remove-user.sh                       # 删除用户、主目录与 DATA_ROOT 下对应 *_data（见 isolation/remove-isolation-user.sh）
 ├── fix-migrated-shared-software.sh      # 可选：拷贝后修正组与目录权限（--normalize-perms 为 2755/644/755）
-├── isolation/                           # 主机与用户开通（由 main.sh 调用）
-├── default-user-environment/            # 共享软件与用户默认（由 main.sh 调用）
+├── isolation/                           # 主机与用户开通（由 add-user.sh 调用）
+├── default-user-environment/            # 共享软件与用户默认（由 add-user.sh 调用）
 ├── template/                            # 可选：为新用户复制或执行的文件
 ├── tests/                               # ./tests/docker-verify.sh — 可选冒烟测试
 └── doc/
@@ -70,15 +70,15 @@
 ## 5. 快速开始
 
 ```bash
-sudo ./main.sh alice /data
+sudo ./add-user.sh alice /data
 ```
 
 将初始化 `/data` 与共享数据目录（默认 `/data/shared_data`），创建用户 `alice` 及其 `/data/alice_data`，并应用默认共享软件环境（除非加上 `--no-default-user-env`）。
 
-## 6. 用法（main.sh）
+## 6. 用法（add-user.sh）
 
 ```bash
-sudo ./main.sh 用户名 数据目录 [选项…]
+sudo ./add-user.sh 用户名 数据目录 [选项…]
 ```
 
 `数据目录` 须为绝对路径（例如 `/data`）；本次运行中作为 `DATA_ROOT`。
@@ -99,12 +99,12 @@ sudo ./main.sh 用户名 数据目录 [选项…]
 示例：
 
 ```bash
-sudo ./main.sh bob /mnt/research-data --no-join-shared-ro
-sudo ./main.sh alice /data --password 'S3cret!'
-sudo ./main.sh carol /data --uid 2301 --shell /bin/zsh
-sudo ./main.sh dave /data --dry-run
-sudo ./main.sh erin /data --no-default-user-env
-sudo ./main.sh frank /data --install-miniconda
+sudo ./add-user.sh bob /mnt/research-data --no-join-shared-ro
+sudo ./add-user.sh alice /data --password 'S3cret!'
+sudo ./add-user.sh carol /data --uid 2301 --shell /bin/zsh
+sudo ./add-user.sh dave /data --dry-run
+sudo ./add-user.sh erin /data --no-default-user-env
+sudo ./add-user.sh frank /data --install-miniconda
 ```
 
 ### 删除用户
@@ -113,15 +113,15 @@ sudo ./main.sh frank /data --install-miniconda
 sudo ./remove-user.sh 用户名 数据目录 [选项…]
 ```
 
-`数据目录` 须与创建该用户时传给 `main.sh` 的 `DATA_ROOT` 一致（例如 `/data`）。默认使用 `userdel -r` 删除账号、主目录与邮件池，并删除 `/data/<用户名>_data`（或 `isolation.env` 中 `USER_DATA_PREFIX` / `USER_DATA_SUFFIX` 所定路径）。**不会**删除共享数据目录（默认 `/data/shared_data`）、`/data/shared_software` 或其他用户数据。选项：`--dry-run`、`--keep-home`、`--keep-user-data`、`--force`（在支持的环境下为 `userdel -f`）、`--ignore-missing`（账号已不存在时不报错；仍可删除遗留的 `*_data` 目录）。
+`数据目录` 须与创建该用户时传给 `add-user.sh` 的 `DATA_ROOT` 一致（例如 `/data`）。默认使用 `userdel -r` 删除账号、主目录与邮件池，并删除 `/data/<用户名>_data`（或 `isolation.env` 中 `USER_DATA_PREFIX` / `USER_DATA_SUFFIX` 所定路径）。**不会**删除共享数据目录（默认 `/data/shared_data`）、`/data/shared_software` 或其他用户数据。选项：`--dry-run`、`--keep-home`、`--keep-user-data`、`--force`（在支持的环境下为 `userdel -f`）、`--ignore-missing`（账号已不存在时不报错；仍可删除遗留的 `*_data` 目录）。
 
 ## 7. 配置
 
-可用环境变量覆盖默认值；若在当前 shell 中已 export，请使用 `sudo -E ./main.sh …`。
+可用环境变量覆盖默认值；若在当前 shell 中已 export，请使用 `sudo -E ./add-user.sh …`。
 
 ### 7.1. `isolation/isolation.env`
 
-- `DATA_ROOT`（默认 `/data`——通常由 `main.sh` 通过 `数据目录` 传入）
+- `DATA_ROOT`（默认 `/data`——通常由 `add-user.sh` 通过 `数据目录` 传入）
 - `SHARED_DATA_DIR_NAME`（默认 `shared_data`）、`SHARED_DATA_PATH`（默认 `${DATA_ROOT}/${SHARED_DATA_DIR_NAME}`）、`SHARED_GROUP`、`SHARED_DATA_MODE`（默认 `shared_ro`、`3775`）
 - `DEFAULT_LOGIN_SHELL`、`USER_DATA_PREFIX`、`USER_DATA_SUFFIX`（`_data`）
 - `USER_UMASK_HINT`、`DRY_RUN`、`ISOLATION_BASHRC_MARK`
@@ -137,7 +137,7 @@ sudo ./remove-user.sh 用户名 数据目录 [选项…]
 
 ## 8. Shell 启动与 `umask`
 
-对所选登录 shell，`main.sh` 创建用户时可能会追加一次性 `umask` 提示。默认环境运行时，也会在 `~/.bashrc`、`~/.zshrc`、`~/.config/fish/config.fish` 中按标记追加相同提示（只追加一次）。
+对所选登录 shell，`add-user.sh` 创建用户时可能会追加一次性 `umask` 提示。默认环境运行时，也会在 `~/.bashrc`、`~/.zshrc`、`~/.config/fish/config.fish` 中按标记追加相同提示（只追加一次）。
 
 ## 9. Docker 冒烟测试
 
@@ -152,7 +152,7 @@ sudo ./remove-user.sh 用户名 数据目录 [选项…]
 - 将软件树拷贝进 `SOFTWARE_ROOT` 后，可执行 `sudo ./fix-migrated-shared-software.sh /data/shared_software/你的目录`，统一属组为 `SOFTWARE_GROUP` 并为子目录设置 setgid（见 [default.typ](default.typ)）；需要批量规范化权限时可加 `--normalize-perms`（目录 `2755`、非可执行 `644`、原先可执行再 `755`）；支持 `DRY_RUN=1`。
 - 隔离基于权限（UID/GID + 模式），不是沙箱
 - root 按设计可访问全部数据
-- 更严格的共享：可在运行 `main.sh` 前通过环境变量设置，例如 `SHARED_DATA_MODE=0750`
+- 更严格的共享：可在运行 `add-user.sh` 前通过环境变量设置，例如 `SHARED_DATA_MODE=0750`
 - 新增附属组后需新会话（`newgrp` 或重新登录）后 `id` 才会显示
 
 ## 11. 设计文档索引

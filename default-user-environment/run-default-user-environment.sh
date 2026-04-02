@@ -7,7 +7,7 @@
 # Apply options are passed through to apply-default-user-environment.sh (--no-join-software,
 # --skip-templates, --force-templates, --install-miniconda).
 #
-# Env: DATA_ROOT and others apply to isolation scripts only if you chain with main.sh separately;
+# Env: DATA_ROOT and others apply to isolation scripts only if you chain with add-user.sh separately;
 # for this wrapper, init uses SOFTWARE_* from config.env.
 
 set -euo pipefail

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Invoked inside Docker as root; workspace mounted at /work.
 # Validates permissions against doc/main.typ and doc/default.typ (isolation, shared_ro, 3775 sticky).
-# Env: INSTALL_MINICONDA (default 1) — set 0 to skip main.sh --install-miniconda and conda checks.
+# Env: INSTALL_MINICONDA (default 1) — set 0 to skip add-user.sh --install-miniconda and conda checks.
 set -euo pipefail
 
 USER_A="${USER_A:-iso_a}"
@@ -44,7 +44,7 @@ expect_fail() {
 }
 
 cd /work
-chmod +x main.sh remove-user.sh fix-migrated-shared-software.sh isolation/*.sh default-user-environment/*.sh 2>/dev/null || true
+chmod +x add-user.sh remove-user.sh fix-migrated-shared-software.sh isolation/*.sh default-user-environment/*.sh 2>/dev/null || true
 
 # shellcheck source=isolation/isolation.env
 source /work/isolation/isolation.env
@@ -53,18 +53,18 @@ for u in "${USER_A}" "${USER_B}" "${USER_C}" "${USER_PW}"; do
   id "${u}" &>/dev/null && userdel -r "${u}" 2>/dev/null || true
 done
 
-echo "=== provision ${USER_A} and ${USER_B} (full main.sh) ==="
+echo "=== provision ${USER_A} and ${USER_B} (full add-user.sh) ==="
 if want_miniconda; then
   echo "    (INSTALL_MINICONDA: install miniconda for ${USER_A})"
-  ./main.sh "${USER_A}" /data --install-miniconda
+  ./add-user.sh "${USER_A}" /data --install-miniconda
 else
   echo "    (INSTALL_MINICONDA=0: skip --install-miniconda for ${USER_A})"
-  ./main.sh "${USER_A}" /data
+  ./add-user.sh "${USER_A}" /data
 fi
-./main.sh "${USER_B}" /data --skip-templates
+./add-user.sh "${USER_B}" /data --skip-templates
 
 echo "=== add user with explicit password ==="
-./main.sh "${USER_PW}" /data --password "${USER_PW_PASS}" --no-default-user-env
+./add-user.sh "${USER_PW}" /data --password "${USER_PW_PASS}" --no-default-user-env
 pw_hash="$(getent shadow "${USER_PW}" | cut -d: -f2)"
 [[ -n "${pw_hash}" ]] || fail "${USER_PW} has empty password hash field"
 [[ "${pw_hash}" != "!" && "${pw_hash}" != "*" && "${pw_hash}" != "!!" && "${pw_hash}" != "!*" ]] || \

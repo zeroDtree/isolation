@@ -5,7 +5,7 @@
 #   3) Init shared software tree (doc/default.typ) and apply templates / ~/software link
 #
 # Usage:
-#   sudo ./main.sh USERNAME DATA_DIR [options]
+#   sudo ./add-user.sh USERNAME DATA_DIR [options]
 #
 # Options:
 #   --join-shared-ro         add user into shared_ro group (default behavior)
@@ -24,12 +24,12 @@
 #   -h, --help               show help
 #
 # Examples:
-#   sudo ./main.sh alice /data
-#   sudo ./main.sh alice /data --password 'S3cret!'
-#   sudo ./main.sh bob /mnt/research-data --no-join-shared-ro
-#   sudo ./main.sh carol /data --uid 2301 --shell /bin/zsh
-#   sudo ./main.sh dave /data --no-default-user-env
-#   sudo ./main.sh eve /data --install-miniconda
+#   sudo ./add-user.sh alice /data
+#   sudo ./add-user.sh alice /data --password 'S3cret!'
+#   sudo ./add-user.sh bob /mnt/research-data --no-join-shared-ro
+#   sudo ./add-user.sh carol /data --uid 2301 --shell /bin/zsh
+#   sudo ./add-user.sh dave /data --no-default-user-env
+#   sudo ./add-user.sh eve /data --install-miniconda
 
 set -euo pipefail
 
