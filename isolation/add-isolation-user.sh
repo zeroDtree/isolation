@@ -28,7 +28,7 @@ SHELL_PATH="${DEFAULT_LOGIN_SHELL}"
 EXPLICIT_UID=""
 
 usage() {
-  sed -n '1,25p' "$0" | tail -n +2
+  sed -n '1,19p' "$0" | tail -n +2
   exit 0
 }
 

@@ -38,7 +38,7 @@ INIT_SHARED_SOFTWARE="${SCRIPT_DIR}/default-user-environment/init-shared-softwar
 APPLY_DEFAULT_ENV="${SCRIPT_DIR}/default-user-environment/apply-default-user-environment.sh"
 
 usage() {
-  sed -n '1,42p' "$0" | tail -n +2
+  sed -n '1,30p' "$0" | tail -n +2
   exit 0
 }
 

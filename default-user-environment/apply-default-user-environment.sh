@@ -28,7 +28,7 @@ SKIP_EXISTING_TEMPLATES=0
 INSTALL_MINICONDA=0
 
 usage() {
-  sed -n '1,22p' "$0" | tail -n +2
+  sed -n '1,17p' "$0" | tail -n +2
   exit 0
 }
 
