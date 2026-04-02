@@ -139,4 +139,4 @@ fi
 
 echo "ok: user ${USERNAME} (uid ${UID_VAL})"
 echo "    home ${HOME_DIR} (700), data ${USER_DATA} (700)"
-[[ "$JOIN_SHARED_RO" -eq 1 ]] && echo "    supplementary group: ${SHARED_GROUP} (/data/shared)"
+[[ "$JOIN_SHARED_RO" -eq 1 ]] && echo "    supplementary group: ${SHARED_GROUP} (${SHARED_DATA_PATH})"

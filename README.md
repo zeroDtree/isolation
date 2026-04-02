@@ -25,7 +25,7 @@ It is intentionally simple and does not try to be a full multi-tenant platform.
 
 ## 1. What it does
 
-- **`/data` layout**: mount point `755`, shared datasets under `/data/shared` (group `shared_ro`, default mode `2775` per [doc/en/main.typ](doc/en/main.typ))
+- **`/data` layout**: mount point `755`, shared datasets under `${DATA_ROOT}/${SHARED_DATA_DIR_NAME}` (default `/data/shared_data`, group `shared_ro`, default mode `3775` per [doc/en/main.typ](doc/en/main.typ))
 - **Per user**: home and `/data/<username>_data` at mode `700`, optional `shared_ro` membership
 - **By default** (same run as above): `/data/shared_software` at `3775`, `software` group, `~/software` symlink, optional files from `template/` (`bashrc.sh`, `zshrc.sh`, `config.fish`, `vimrc` / `vimrc.sh`, optional `install_miniconda.sh`; existing files are appended once with a marked template block unless you choose skip/force behavior)
 - **Dry run**: `DRY_RUN=1` or `main.sh --dry-run`
@@ -73,7 +73,7 @@ If you need stronger isolation or resource control, add those mechanisms separat
 sudo ./main.sh alice /data
 ```
 
-This initializes `/data` and `/data/shared`, creates `alice` with `/data/alice_data`, and applies the default shared-software environment unless you add `--no-default-user-env`.
+This initializes `/data` and the shared data directory (default `/data/shared_data`), creates `alice` with `/data/alice_data`, and applies the default shared-software environment unless you add `--no-default-user-env`.
 
 ## 6. Usage (`main.sh`)
 
@@ -113,7 +113,7 @@ sudo ./main.sh frank /data --install-miniconda
 sudo ./remove-user.sh USERNAME DATA_DIR [options]
 ```
 
-`DATA_DIR` must match the `DATA_ROOT` used when the user was created (for example `/data`). By default this removes the account with `userdel -r` (home and mail spool) and deletes `/data/<username>_data` (or the configured `USER_DATA_PREFIX` / `USER_DATA_SUFFIX`). It does **not** remove `/data/shared`, `/data/shared_software`, or other users. Options: `--dry-run`, `--keep-home`, `--keep-user-data`, `--force` (passes `userdel -f` where supported), `--ignore-missing` (no error if the account is already gone; can still drop the data dir).
+`DATA_DIR` must match the `DATA_ROOT` used when the user was created (for example `/data`). By default this removes the account with `userdel -r` (home and mail spool) and deletes `/data/<username>_data` (or the configured `USER_DATA_PREFIX` / `USER_DATA_SUFFIX`). It does **not** remove the shared data directory (default `/data/shared_data`), `/data/shared_software`, or other users. Options: `--dry-run`, `--keep-home`, `--keep-user-data`, `--force` (passes `userdel -f` where supported), `--ignore-missing` (no error if the account is already gone; can still drop the data dir).
 
 ## 7. Configuration
 
@@ -122,7 +122,7 @@ Override defaults with environment variables; use `sudo -E ./main.sh …` if you
 ### 7.1. `isolation/isolation.env`
 
 - `DATA_ROOT` (default `/data` — usually set by `main.sh` via `DATA_DIR`)
-- `SHARED_GROUP`, `SHARED_MODE` (defaults `shared_ro`, `2775`)
+- `SHARED_DATA_DIR_NAME` (default `shared_data`), `SHARED_DATA_PATH` (default `${DATA_ROOT}/${SHARED_DATA_DIR_NAME}`), `SHARED_GROUP`, `SHARED_DATA_MODE` (defaults `shared_ro`, `3775`)
 - `DEFAULT_LOGIN_SHELL`, `USER_DATA_PREFIX`, `USER_DATA_SUFFIX` (`_data`)
 - `USER_UMASK_HINT`, `DRY_RUN`, `ISOLATION_BASHRC_MARK`
 
@@ -130,7 +130,7 @@ Override defaults with environment variables; use `sudo -E ./main.sh …` if you
 
 Loaded when the default-user-env phase runs; extends `isolation.env` with:
 
-- `SOFTWARE_ROOT`, `SOFTWARE_GROUP`, `SOFTWARE_MODE` (`3775`)
+- `SOFTWARE_ROOT`, `SOFTWARE_GROUP`, `SHARED_SOFTWARE_MODE` (`3775`)
 - `USER_SOFTWARE_LINK_NAME` (`software`)
 - `TEMPLATE_DIR` (repo `template/` by default)
 - `ENABLE_SOFTWARE_AREA` (`1`; set `0` to disable that phase)
@@ -152,7 +152,7 @@ End-to-end permission checks inside a container (default image `ubuntu:24.04`; p
 - After copying a tree into `SOFTWARE_ROOT`, run `sudo ./fix-migrated-shared-software.sh /data/shared_software/yourtree` so the subtree uses `SOFTWARE_GROUP` and directory setgid (see [doc/en/default.typ](doc/en/default.typ)); add `--normalize-perms` for dirs `2755`, non-executables `644`, then prior executables `755`; `DRY_RUN=1` is supported.
 - Isolation is permission-based (UID/GID + modes), not a sandbox
 - Root can access all data by design
-- Tighter sharing: e.g. `SHARED_MODE=0750` via env before `main.sh`
+- Tighter sharing: e.g. `SHARED_DATA_MODE=0750` via env before `main.sh`
 - New supplementary groups need a new session (`newgrp` or re-login) before `id` shows them
 
 ## 11. Design reference

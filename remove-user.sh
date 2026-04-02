@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Remove a user created by main.sh: deletes the account (and by default home + /data/<user>_data).
-# Does not undo host init (/data/shared, /data/shared_software) or shared trees.
+# Does not undo host init (shared data dir under DATA_ROOT, /data/shared_software) or shared trees.
 #
 # Usage:
 #   sudo ./remove-user.sh USERNAME DATA_DIR [options]

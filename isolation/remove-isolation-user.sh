@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Remove a user provisioned by isolation/add-isolation-user.sh.
-# Does not remove shared layout (/data/shared, /data/shared_software) or other users' data.
+# Does not remove shared layout (SHARED_DATA_PATH, /data/shared_software) or other users' data.
 #
 # Usage:
 #   sudo DATA_ROOT=/data ./remove-isolation-user.sh USERNAME [options]

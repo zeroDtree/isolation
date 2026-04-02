@@ -2,7 +2,7 @@
 # One-time host layout: SOFTWARE_GROUP, SOFTWARE_ROOT with sticky+setgid (see doc/default.typ).
 #
 # Usage: sudo ./init-shared-software-layout.sh
-# Env:   default-user-environment/config.env (override SOFTWARE_ROOT, SOFTWARE_MODE, DRY_RUN, …)
+# Env:   default-user-environment/config.env (override SOFTWARE_ROOT, SHARED_SOFTWARE_MODE, DRY_RUN, …)
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -19,7 +19,7 @@ fi
 run groupadd -f "${SOFTWARE_GROUP}"
 run mkdir -p "${SOFTWARE_ROOT}"
 run chown "root:${SOFTWARE_GROUP}" "${SOFTWARE_ROOT}"
-run chmod "${SOFTWARE_MODE}" "${SOFTWARE_ROOT}"
+run chmod "${SHARED_SOFTWARE_MODE}" "${SOFTWARE_ROOT}"
 
-echo "ok: ${SOFTWARE_ROOT} ready (group ${SOFTWARE_GROUP}, mode ${SOFTWARE_MODE})"
+echo "ok: ${SOFTWARE_ROOT} ready (group ${SOFTWARE_GROUP}, mode ${SHARED_SOFTWARE_MODE})"
 echo "    add users to the group and run apply-default-user-environment.sh for ~/software link"

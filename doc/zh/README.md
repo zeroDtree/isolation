@@ -25,7 +25,7 @@
 
 ## 1. 本仓库做什么
 
-- **`/data` 布局**：挂载点 `755`，共享数据集在 `/data/shared`（组 `shared_ro`，默认模式 `2775`，见 [main.typ](main.typ)）
+- **`/data` 布局**：挂载点 `755`，共享数据集在 `${DATA_ROOT}/${SHARED_DATA_DIR_NAME}`（默认 `/data/shared_data`，组 `shared_ro`，默认模式 `3775`，见 [main.typ](main.typ)）
 - **每用户**：主目录与 `/data/<用户名>_data` 为 `700`，可选加入 `shared_ro`
 - **默认**（同一次运行）：`/data/shared_software` 为 `3775`、`software` 组、`~/software` 符号链接，以及来自 `template/` 的可选文件（`bashrc.sh`、`zshrc.sh`、`config.fish`、`vimrc` / `vimrc.sh`、可选 `install_miniconda.sh`）；当目标文件已存在时，默认以“带标记的模板块”追加一次（幂等），也可改为跳过或覆盖
 - **演练**：`DRY_RUN=1` 或 `main.sh --dry-run`
@@ -73,7 +73,7 @@
 sudo ./main.sh alice /data
 ```
 
-将初始化 `/data` 与 `/data/shared`，创建用户 `alice` 及其 `/data/alice_data`，并应用默认共享软件环境（除非加上 `--no-default-user-env`）。
+将初始化 `/data` 与共享数据目录（默认 `/data/shared_data`），创建用户 `alice` 及其 `/data/alice_data`，并应用默认共享软件环境（除非加上 `--no-default-user-env`）。
 
 ## 6. 用法（main.sh）
 
@@ -113,7 +113,7 @@ sudo ./main.sh frank /data --install-miniconda
 sudo ./remove-user.sh 用户名 数据目录 [选项…]
 ```
 
-`数据目录` 须与创建该用户时传给 `main.sh` 的 `DATA_ROOT` 一致（例如 `/data`）。默认使用 `userdel -r` 删除账号、主目录与邮件池，并删除 `/data/<用户名>_data`（或 `isolation.env` 中 `USER_DATA_PREFIX` / `USER_DATA_SUFFIX` 所定路径）。**不会**删除 `/data/shared`、`/data/shared_software` 或其他用户数据。选项：`--dry-run`、`--keep-home`、`--keep-user-data`、`--force`（在支持的环境下为 `userdel -f`）、`--ignore-missing`（账号已不存在时不报错；仍可删除遗留的 `*_data` 目录）。
+`数据目录` 须与创建该用户时传给 `main.sh` 的 `DATA_ROOT` 一致（例如 `/data`）。默认使用 `userdel -r` 删除账号、主目录与邮件池，并删除 `/data/<用户名>_data`（或 `isolation.env` 中 `USER_DATA_PREFIX` / `USER_DATA_SUFFIX` 所定路径）。**不会**删除共享数据目录（默认 `/data/shared_data`）、`/data/shared_software` 或其他用户数据。选项：`--dry-run`、`--keep-home`、`--keep-user-data`、`--force`（在支持的环境下为 `userdel -f`）、`--ignore-missing`（账号已不存在时不报错；仍可删除遗留的 `*_data` 目录）。
 
 ## 7. 配置
 
@@ -122,7 +122,7 @@ sudo ./remove-user.sh 用户名 数据目录 [选项…]
 ### 7.1. `isolation/isolation.env`
 
 - `DATA_ROOT`（默认 `/data`——通常由 `main.sh` 通过 `数据目录` 传入）
-- `SHARED_GROUP`、`SHARED_MODE`（默认 `shared_ro`、`2775`）
+- `SHARED_DATA_DIR_NAME`（默认 `shared_data`）、`SHARED_DATA_PATH`（默认 `${DATA_ROOT}/${SHARED_DATA_DIR_NAME}`）、`SHARED_GROUP`、`SHARED_DATA_MODE`（默认 `shared_ro`、`3775`）
 - `DEFAULT_LOGIN_SHELL`、`USER_DATA_PREFIX`、`USER_DATA_SUFFIX`（`_data`）
 - `USER_UMASK_HINT`、`DRY_RUN`、`ISOLATION_BASHRC_MARK`
 
@@ -130,7 +130,7 @@ sudo ./remove-user.sh 用户名 数据目录 [选项…]
 
 在默认用户环境阶段加载；在 `isolation.env` 基础上扩展：
 
-- `SOFTWARE_ROOT`、`SOFTWARE_GROUP`、`SOFTWARE_MODE`（`3775`）
+- `SOFTWARE_ROOT`、`SOFTWARE_GROUP`、`SHARED_SOFTWARE_MODE`（`3775`）
 - `USER_SOFTWARE_LINK_NAME`（`software`）
 - `TEMPLATE_DIR`（默认同仓库 `template/`）
 - `ENABLE_SOFTWARE_AREA`（`1`；设为 `0` 可关闭该阶段）
@@ -152,7 +152,7 @@ sudo ./remove-user.sh 用户名 数据目录 [选项…]
 - 将软件树拷贝进 `SOFTWARE_ROOT` 后，可执行 `sudo ./fix-migrated-shared-software.sh /data/shared_software/你的目录`，统一属组为 `SOFTWARE_GROUP` 并为子目录设置 setgid（见 [default.typ](default.typ)）；需要批量规范化权限时可加 `--normalize-perms`（目录 `2755`、非可执行 `644`、原先可执行再 `755`）；支持 `DRY_RUN=1`。
 - 隔离基于权限（UID/GID + 模式），不是沙箱
 - root 按设计可访问全部数据
-- 更严格的共享：可在运行 `main.sh` 前通过环境变量设置，例如 `SHARED_MODE=0750`
+- 更严格的共享：可在运行 `main.sh` 前通过环境变量设置，例如 `SHARED_DATA_MODE=0750`
 - 新增附属组后需新会话（`newgrp` 或重新登录）后 `id` 才会显示
 
 ## 11. 设计文档索引

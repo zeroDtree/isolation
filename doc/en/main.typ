@@ -50,7 +50,7 @@ Host machine (single Linux system)
 │   ├── User user_a (UID 1001) -> login shell session
 │   ├── User user_b (UID 1002) ...
 │   └── User user_c (UID 1003) ...
-├── Shared data area: /data/shared (managed by root or dedicated group)
+├── Shared data area: /data/shared_data (managed by root or dedicated group; configurable)
 └── User private data areas: /data/{username} (owned by that user)
 ```
 
@@ -61,7 +61,7 @@ After login through `ssh user_a@host`, processes run under that user's UID and c
 ```
 Host filesystem:
 /data/
-├── shared/          # shared datasets (read-only or group-read-only)
+├── shared_data/     # shared datasets (read-only or group-read-only; name configurable)
 │   ├── ImageNet/
 │   ├── COCO/
 │   └── ...
@@ -81,7 +81,7 @@ Host filesystem:
 
 - Each researcher should have one *login account* (for example `user_a`), and *shared accounts must be avoided*.
 - Usernames should use lowercase letters, numbers, underscores, or hyphens (for example `user-a`, `user_a`) and start with a letter or underscore, consistent with script validation rules.
-- For shared read access, create group `shared_ro` and add users who need dataset access. Shared directories can use group `shared_ro` with mode `2775` or `0750`, depending on whether group collaboration write access is needed.
+- For shared read access, create group `shared_ro` and add users who need dataset access. Shared directories can use group `shared_ro` with mode `3775` (setgid + sticky + group-writable, default in `init-host.sh`), `2775` (setgid only), or `0750`, depending on whether sticky and group collaboration write access are needed.
 
 
 === Home and Data Directories
@@ -126,7 +126,7 @@ Linux files and directories use *Discretionary Access Control (DAC)*: each objec
 
 - *Relation to login*: after login, processes run with that user's *UID*. The kernel checks permissions in owner/group/other order and denies access if none match (assuming no ACL or other extensions).
 - *Numeric notation*: octal modes are commonly used; `700` means `rwx------`, and `755` means `rwxr-xr-x`, matching private and shared directory recommendations in this document.
-- *Common commands*: use `chown` to change owner/group and `chmod` to change modes. Default modes for newly created objects are affected by `umask` and special-bit rules, described in "Octal, special bits, and umask" below. Collaboration-related shared modes such as `2775` are discussed in "Users and Groups".
+- *Common commands*: use `chown` to change owner/group and `chmod` to change modes. Default modes for newly created objects are affected by `umask` and special-bit rules, described in "Octal, special bits, and umask" below. Collaboration-related shared modes such as `3775` and `2775` are discussed in "Users and Groups".
 
 == Symbolic Mode (`ls -l` first column, 10 characters)
 
@@ -141,7 +141,7 @@ The mode string from `ls -l` maps left-to-right as follows (consistent with tool
 
 *Three-digit octal `chmod XYZ`*: from left to right these are *user / group / other*. Each digit is 0-7, formed by `r=4`, `w=2`, `x=1` (missing bits add 0). For example, `7`=`4+2+1` gives `rwx`, and `5`=`4+1` gives `r-x`.
 
-*Four-digit octal `chmod SXYZ`*: the leftmost `S` is the sum of *special bits* - `4` for setuid (on executables, effective user is often file owner), `2` for setgid (on executables, effective group; on directories, new files/subdirectories commonly *inherit directory group*), and `1` for sticky (on directories, only file owner, directory owner, or root can delete/rename others' files; classic example `/tmp`). The trailing `XYZ` are the same as normal permissions. Example: `2775` = `2` (directory setgid) + `775` (`rwxrwxr-x`), often shown symbolically as `drwxrwsr-x`.
+*Four-digit octal `chmod SXYZ`*: the leftmost `S` is the sum of *special bits* - `4` for setuid (on executables, effective user is often file owner), `2` for setgid (on executables, effective group; on directories, new files/subdirectories commonly *inherit directory group*), and `1` for sticky (on directories, only file owner, directory owner, or root can delete/rename others' files; classic example `/tmp`). The trailing `XYZ` are the same as normal permissions. Example: `3775` = `3` (sticky + directory setgid) + `775` (`rwxrwxr-x`), often shown symbolically with both `s` and `t`. Example: `2775` = `2` (directory setgid only) + `775`, often `drwxrwsr-x`.
 
 *`s`/`S` and `t`/`T` in `ls -l`*: special bits occupy execute positions. If execute is also set, lowercase `s`/`t` is shown; if execute is not set and only special bit exists, uppercase `S`/`T` is shown.
 

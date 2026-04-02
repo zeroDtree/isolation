@@ -46,6 +46,9 @@ expect_fail() {
 cd /work
 chmod +x main.sh remove-user.sh fix-migrated-shared-software.sh isolation/*.sh default-user-environment/*.sh 2>/dev/null || true
 
+# shellcheck source=isolation/isolation.env
+source /work/isolation/isolation.env
+
 for u in "${USER_A}" "${USER_B}" "${USER_C}" "${USER_PW}"; do
   id "${u}" &>/dev/null && userdel -r "${u}" 2>/dev/null || true
 done
@@ -72,11 +75,14 @@ echo "=== doc/main.typ: /data and layout ==="
 [[ "$(stat -c '%a' /data)" == "755" ]] || fail "/data mode want 755 got $(stat -c '%a' /data)"
 ok "/data mode 755 (root:root)"
 
-[[ "$(stat -c '%a' /data/shared)" == "2775" ]] || fail "/data/shared mode want 2775 got $(stat -c '%a' /data/shared)"
-ok "/data/shared mode 2775"
+[[ "$(stat -c '%a' "${SHARED_DATA_PATH}")" == "3775" ]] || fail "${SHARED_DATA_PATH} mode want 3775 got $(stat -c '%a' "${SHARED_DATA_PATH}")"
+perm_shared="$(stat -c '%A' "${SHARED_DATA_PATH}")"
+[[ "${perm_shared}" == *t* ]] || fail "${SHARED_DATA_PATH} sticky bit (t) not shown in ${perm_shared}"
+[[ "${perm_shared}" == *s* ]] || fail "${SHARED_DATA_PATH} setgid bit (s) not shown in ${perm_shared}"
+ok "${SHARED_DATA_PATH} mode 3775 (sticky + setgid)"
 
-[[ "$(stat -c '%U:%G' /data/shared)" == "root:shared_ro" ]] || fail "/data/shared owner want root:shared_ro"
-ok "/data/shared group shared_ro"
+[[ "$(stat -c '%U:%G' "${SHARED_DATA_PATH}")" == "root:shared_ro" ]] || fail "${SHARED_DATA_PATH} owner want root:shared_ro"
+ok "${SHARED_DATA_PATH} group shared_ro"
 
 echo "=== doc/main.typ: home and private data 700, cross-user deny ==="
 for u in "${USER_A}" "${USER_B}"; do
