@@ -109,6 +109,17 @@ if [[ "$SKIP_TEMPLATES" -eq 0 ]] && [[ -d "${TEMPLATE_DIR}" ]]; then
   if [[ "$FORCE_TEMPLATES" -eq 1 ]] && [[ "$SKIP_EXISTING_TEMPLATES" -eq 1 ]]; then
     die "--force-templates and --skip-existing-templates are mutually exclusive"
   fi
+  # mkdir -p runs as root; chown only the leaf file leaves parent dirs as root:root.
+  chown_parents_under_home() {
+    local abs_dst="$1"
+    local d
+    d="$(dirname "$abs_dst")"
+    while [[ "$d" == "${HOME_DIR}" ]] || [[ "$d" == "${HOME_DIR}/"* ]]; do
+      run chown "${USERNAME}:${USERNAME}" "$d"
+      [[ "$d" == "${HOME_DIR}" ]] && break
+      d="$(dirname "$d")"
+    done
+  }
   copy_template() {
     local src_name="$1"
     local dst_rel="$2"
@@ -118,6 +129,7 @@ if [[ "$SKIP_TEMPLATES" -eq 0 ]] && [[ -d "${TEMPLATE_DIR}" ]]; then
     local end_mark="# <<< isolation template ${src_name} <<<"
     [[ -f "$src" ]] || return 0
     run mkdir -p "$(dirname "$dst")"
+    chown_parents_under_home "$dst"
     if [[ ! -e "$dst" ]] || [[ "$FORCE_TEMPLATES" -eq 1 ]]; then
       run cp -f "$src" "$dst"
       run chown "${USERNAME}:${USERNAME}" "$dst"
