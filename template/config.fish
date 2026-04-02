@@ -96,16 +96,6 @@ function ca_on
 	echo "REQUESTS_CA_BUNDLE=$REQUESTS_CA_BUNDLE"
 end
 
-
-function zls
-	if tmux has-session -t "zls$argv" 2>/dev/null
-		echo "tmux attach-session -t zls$argv"
-		tmux attach-session -t "zls$argv"
-	else
-		tmux new-session -s "zls$argv"
-	end
-end
-
 function start_if_not_running
 	set -l process_name $argv[1]
 	set -l command $argv[2..-1]
