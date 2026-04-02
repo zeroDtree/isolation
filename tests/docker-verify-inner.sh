@@ -6,6 +6,8 @@ set -euo pipefail
 USER_A="${USER_A:-iso_a}"
 USER_B="${USER_B:-iso_b}"
 USER_C="${USER_C:-iso_c}"
+USER_PW="${USER_PW:-iso_pw}"
+USER_PW_PASS="${USER_PW_PASS:-TestPw_123!}"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 ok() { echo "OK   $*"; }
@@ -35,13 +37,21 @@ expect_fail() {
 cd /work
 chmod +x main.sh isolation/*.sh default-user-environment/*.sh 2>/dev/null || true
 
-for u in "${USER_A}" "${USER_B}" "${USER_C}"; do
+for u in "${USER_A}" "${USER_B}" "${USER_C}" "${USER_PW}"; do
   id "${u}" &>/dev/null && userdel -r "${u}" 2>/dev/null || true
 done
 
 echo "=== provision ${USER_A} and ${USER_B} (full main.sh) ==="
 ./main.sh "${USER_A}" /data --install-miniconda
 ./main.sh "${USER_B}" /data --skip-templates
+
+echo "=== add user with explicit password ==="
+./main.sh "${USER_PW}" /data --password "${USER_PW_PASS}" --no-default-user-env
+pw_hash="$(getent shadow "${USER_PW}" | cut -d: -f2)"
+[[ -n "${pw_hash}" ]] || fail "${USER_PW} has empty password hash field"
+[[ "${pw_hash}" != "!" && "${pw_hash}" != "*" && "${pw_hash}" != "!!" && "${pw_hash}" != "!*" ]] || \
+  fail "${USER_PW} password should be set, got locked marker: ${pw_hash}"
+ok "user password is set for ${USER_PW} (shadow entry is not locked)"
 
 echo "=== doc/main.typ: /data and layout ==="
 [[ "$(stat -c '%a' /data)" == "755" ]] || fail "/data mode want 755 got $(stat -c '%a' /data)"
@@ -162,5 +172,6 @@ rm -rf "${sw}/dir_by_${USER_A}"
 userdel -r "${USER_C}" 2>/dev/null || true
 userdel -r "${USER_A}" 2>/dev/null || true
 userdel -r "${USER_B}" 2>/dev/null || true
+userdel -r "${USER_PW}" 2>/dev/null || true
 
 echo "=== all permission checks passed (main.typ + default.typ) ==="

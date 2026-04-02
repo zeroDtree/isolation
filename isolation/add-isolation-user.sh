@@ -7,12 +7,14 @@
 #
 # Options:
 #   --uid UID                 explicit UID (must be free)
+#   --password PASS           set login password for the new user
 #   --join-shared-ro         add user to shared_ro (default behavior)
 #   --no-join-shared-ro      do not add user to shared_ro
 #   --shell PATH             login shell (default /bin/bash)
 #
 # Examples:
 #   sudo ./add-isolation-user.sh alice
+#   sudo ./add-isolation-user.sh alice --password 'S3cret!'
 #   sudo ./add-isolation-user.sh bob --join-shared-ro
 #   sudo ./add-isolation-user.sh carol --no-join-shared-ro
 #
@@ -26,9 +28,10 @@ source "${SCRIPT_DIR}/isolation-common.sh"
 JOIN_SHARED_RO=1
 SHELL_PATH="${DEFAULT_LOGIN_SHELL}"
 EXPLICIT_UID=""
+LOGIN_PASSWORD=""
 
 usage() {
-  sed -n '1,19p' "$0" | tail -n +2
+  sed -n '1,21p' "$0" | tail -n +2
   exit 0
 }
 
@@ -42,6 +45,10 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --uid)
       EXPLICIT_UID="${2:?}"
+      shift 2
+      ;;
+    --password)
+      LOGIN_PASSWORD="${2:?}"
       shift 2
       ;;
     --join-shared-ro)
@@ -75,6 +82,14 @@ USERADD_ARGS=( -m -s "$SHELL_PATH" )
 [[ -n "$EXPLICIT_UID" ]] && USERADD_ARGS+=( -u "$EXPLICIT_UID" )
 
 run useradd "${USERADD_ARGS[@]}" "$USERNAME"
+
+if [[ -n "${LOGIN_PASSWORD}" ]]; then
+  if [[ "${DRY_RUN}" == 1 ]]; then
+    echo "[dry-run] set login password for ${USERNAME} via chpasswd"
+  else
+    printf '%s:%s\n' "${USERNAME}" "${LOGIN_PASSWORD}" | chpasswd
+  fi
+fi
 
 if [[ "${DRY_RUN}" == 1 ]]; then
   UID_VAL="(dry-run)"

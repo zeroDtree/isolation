@@ -84,7 +84,7 @@ sudo ./main.sh USERNAME DATA_DIR [options]
 Options:
 
 - `--join-shared-ro` / `--no-join-shared-ro`: add user to `shared_ro` (default: join)
-- `--uid UID`, `--shell PATH`
+- `--uid UID`, `--password PASS`, `--shell PATH`
 - `--dry-run`: print actions only
 - `--no-default-user-env`: skip shared-software init and template / `~/software` steps
 - `--with-default-user-env`: explicit default (same as omitting the flag above)
@@ -98,6 +98,7 @@ Examples:
 
 ```bash
 sudo ./main.sh bob /mnt/research-data --no-join-shared-ro
+sudo ./main.sh alice /data --password 'S3cret!'
 sudo ./main.sh carol /data --uid 2301 --shell /bin/zsh
 sudo ./main.sh dave /data --dry-run
 sudo ./main.sh erin /data --no-default-user-env

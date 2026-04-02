@@ -84,7 +84,7 @@ sudo ./main.sh 用户名 数据目录 [选项…]
 选项：
 
 - `--join-shared-ro` / `--no-join-shared-ro`：是否将用户加入 `shared_ro`（默认：加入）
-- `--uid UID`、`--shell PATH`
+- `--uid UID`、`--password PASS`、`--shell PATH`
 - `--dry-run`：仅打印将要执行的操作
 - `--no-default-user-env`：跳过共享软件初始化、模板与 `~/software` 相关步骤
 - `--with-default-user-env`：显式启用默认环境（与省略上述「关闭」类标志相同）
@@ -98,6 +98,7 @@ sudo ./main.sh 用户名 数据目录 [选项…]
 
 ```bash
 sudo ./main.sh bob /mnt/research-data --no-join-shared-ro
+sudo ./main.sh alice /data --password 'S3cret!'
 sudo ./main.sh carol /data --uid 2301 --shell /bin/zsh
 sudo ./main.sh dave /data --dry-run
 sudo ./main.sh erin /data --no-default-user-env

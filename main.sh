@@ -11,6 +11,7 @@
 #   --join-shared-ro         add user into shared_ro group (default behavior)
 #   --no-join-shared-ro      do not add user into shared_ro group
 #   --uid UID                explicit UID for useradd
+#   --password PASS          set login password for the new user
 #   --shell PATH             login shell (default from isolation.env)
 #   --dry-run                print commands only (no changes)
 #   --no-default-user-env    skip shared-software init and apply-default-user-environment.sh
@@ -24,6 +25,7 @@
 #
 # Examples:
 #   sudo ./main.sh alice /data
+#   sudo ./main.sh alice /data --password 'S3cret!'
 #   sudo ./main.sh bob /mnt/research-data --no-join-shared-ro
 #   sudo ./main.sh carol /data --uid 2301 --shell /bin/zsh
 #   sudo ./main.sh dave /data --no-default-user-env
@@ -38,7 +40,7 @@ INIT_SHARED_SOFTWARE="${SCRIPT_DIR}/default-user-environment/init-shared-softwar
 APPLY_DEFAULT_ENV="${SCRIPT_DIR}/default-user-environment/apply-default-user-environment.sh"
 
 usage() {
-  sed -n '1,30p' "$0" | tail -n +2
+  sed -n '1,33p' "$0" | tail -n +2
   exit 0
 }
 
@@ -51,6 +53,7 @@ shift 2 || true
 JOIN_SHARED_RO=1
 DRY_RUN_FLAG=0
 EXPLICIT_UID=""
+LOGIN_PASSWORD=""
 SHELL_PATH=""
 DEFAULT_USER_ENV=1
 APPLY_ARGS=()
@@ -67,6 +70,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --uid)
       EXPLICIT_UID="${2:?}"
+      shift 2
+      ;;
+    --password)
+      LOGIN_PASSWORD="${2:?}"
       shift 2
       ;;
     --shell)
@@ -114,6 +121,7 @@ fi
 ADD_ARGS=("${USERNAME}")
 [[ "${JOIN_SHARED_RO}" -eq 1 ]] && ADD_ARGS+=("--join-shared-ro")
 [[ -n "${EXPLICIT_UID}" ]] && ADD_ARGS+=("--uid" "${EXPLICIT_UID}")
+[[ -n "${LOGIN_PASSWORD}" ]] && ADD_ARGS+=("--password" "${LOGIN_PASSWORD}")
 [[ -n "${SHELL_PATH}" ]] && ADD_ARGS+=("--shell" "${SHELL_PATH}")
 
 if [[ "${DRY_RUN_FLAG}" -eq 1 ]]; then
