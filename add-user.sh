@@ -2,7 +2,7 @@
 # One-shot setup wrapper:
 #   1) Initialize host layout under DATA_ROOT
 #   2) Create one isolated user
-#   3) Init shared software tree (doc/default.typ) and apply templates / ~/shared_software link
+#   3) Init shared software tree (doc/default.typ) and apply templates / ~/shared_software / ~/data -> DATA_ROOT
 #
 # Usage:
 #   sudo ./add-user.sh USERNAME DATA_DIR [options]
@@ -145,7 +145,7 @@ if [[ "${DEFAULT_USER_ENV}" -eq 1 ]]; then
   "${INIT_SHARED_SOFTWARE}"
 
   echo "[step 4/${_TOTAL}] apply default user environment for ${USERNAME}"
-  "${APPLY_DEFAULT_ENV}" "${USERNAME}" "${APPLY_ARGS[@]}"
+  DATA_ROOT="${DATA_DIR}" "${APPLY_DEFAULT_ENV}" "${USERNAME}" "${APPLY_ARGS[@]}"
 else
   echo "[skip] default user environment (--no-default-user-env)"
 fi

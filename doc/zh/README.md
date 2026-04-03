@@ -27,7 +27,7 @@
 
 - **`/data` 布局**：挂载点 `755`，共享数据集在 `${DATA_ROOT}/${SHARED_DATA_DIR_NAME}`（默认 `/data/shared_data`，组 `shared_ro`，默认模式 `3775`，见 [main.typ](main.typ)）
 - **每用户**：主目录与 `/data/<用户名>_data` 为 `700`，可选加入 `shared_ro`
-- **默认**（同一次运行）：`/data/shared_software` 为 `3775`、`software` 组、`~/shared_software` 符号链接，以及来自 `template/` 的可选文件（`bashrc.sh`、`zshrc.sh`、`config.fish`、`vimrc` / `vimrc.sh`、可选 `install_miniconda.sh`）；当目标文件已存在时，默认以“带标记的模板块”追加一次（幂等），也可改为跳过或覆盖
+- **默认**（同一次运行）：`/data/shared_software` 为 `3775`、`software` 组、`~/shared_software` 符号链接，`~/data`（名称可配）指向 `DATA_ROOT` 的符号链接（便于找到共享数据集与 `*_data` 等，无需记宿主机路径），以及来自 `template/` 的可选文件（`bashrc.sh`、`zshrc.sh`、`config.fish`、`vimrc` / `vimrc.sh`、可选 `install_miniconda.sh`）；当目标文件已存在时，默认以“带标记的模板块”追加一次（幂等），也可改为跳过或覆盖
 - **演练**：`DRY_RUN=1` 或 `add-user.sh --dry-run`
 
 若只需要 main.typ 中的目录布局、不需要默认环境步骤，可使用 `add-user.sh --no-default-user-env`。
@@ -73,7 +73,7 @@
 sudo ./add-user.sh alice /data
 ```
 
-将初始化 `/data` 与共享数据目录（默认 `/data/shared_data`），创建用户 `alice` 及其 `/data/alice_data`，并应用默认共享软件环境（除非加上 `--no-default-user-env`）。
+将初始化 `/data` 与共享数据目录（默认 `/data/shared_data`），创建用户 `alice` 及其 `/data/alice_data`，并应用默认共享软件环境（含 `~/shared_software` 与 `~/data` → `DATA_ROOT`，除非加上 `--no-default-user-env`）。
 
 ## 6. 用法（add-user.sh）
 
@@ -88,7 +88,7 @@ sudo ./add-user.sh 用户名 数据目录 [选项…]
 - `--join-shared-ro` / `--no-join-shared-ro`：是否将用户加入 `shared_ro`（默认：加入）
 - `--uid UID`、`--password PASS`、`--shell PATH`
 - `--dry-run`：仅打印将要执行的操作
-- `--no-default-user-env`：跳过共享软件初始化、模板与 `~/shared_software` 相关步骤
+- `--no-default-user-env`：跳过共享软件初始化、模板与 `~/shared_software`、`~/data` → `DATA_ROOT` 相关步骤
 - `--with-default-user-env`：显式启用默认环境（与省略上述「关闭」类标志相同）
 - `--no-join-software`、`--skip-templates`、`--force-templates`、`--skip-existing-templates`、`--install-miniconda`：仅在默认用户环境阶段生效
 - 模板文件已存在时的行为：
@@ -132,6 +132,8 @@ sudo ./remove-user.sh 用户名 数据目录 [选项…]
 
 - `SOFTWARE_ROOT`、`SOFTWARE_GROUP`、`SHARED_SOFTWARE_MODE`（`3775`）
 - `USER_SOFTWARE_LINK_NAME`（`shared_software`）
+- `USER_DATA_ROOT_LINK_NAME`（`data`）：家目录下 `~/<名称>` → `DATA_ROOT` 的链接名
+- `ENABLE_DATA_ROOT_LINK`（`1`；设为 `0` 可跳过该符号链接）
 - `TEMPLATE_DIR`（默认同仓库 `template/`）
 - `ENABLE_SOFTWARE_AREA`（`1`；设为 `0` 可关闭该阶段）
 
@@ -150,6 +152,7 @@ sudo ./remove-user.sh 用户名 数据目录 [选项…]
 ## 10. 已知限制与运维说明
 
 - 将软件树拷贝进 `SOFTWARE_ROOT` 后，可执行 `sudo ./fix-migrated-shared-software.sh /data/shared_software/你的目录`，统一属组为 `SOFTWARE_GROUP` 并为子目录设置 setgid（见 [default.typ](default.typ)）；需要批量规范化权限时可加 `--normalize-perms`（目录 `2755`、非可执行 `644`、原先可执行再 `755`）；支持 `DRY_RUN=1`。
+- 若单独执行 `default-user-environment/apply-default-user-environment.sh`，请将 `DATA_ROOT` 设为开通该用户时使用的数据根（例如 `sudo DATA_ROOT=/mnt/research-data ./default-user-environment/apply-default-user-environment.sh alice`）；`add-user.sh` 会自动传入。
 - 隔离基于权限（UID/GID + 模式），不是沙箱
 - root 按设计可访问全部数据
 - 更严格的共享：可在运行 `add-user.sh` 前通过环境变量设置，例如 `SHARED_DATA_MODE=0750`
@@ -158,6 +161,6 @@ sudo ./remove-user.sh 用户名 数据目录 [选项…]
 ## 11. 设计文档索引
 
 - [main.typ](main.typ) — 账户与目录隔离
-- [default.typ](default.typ) — 协作软件目录、模板、可选 Miniconda
+- [default.typ](default.typ) — 协作软件目录、`~/data` → `DATA_ROOT`、模板、可选 Miniconda
 
 英文设计说明源文件：[doc/en/main.typ](../en/main.typ)、[doc/en/default.typ](../en/default.typ)。

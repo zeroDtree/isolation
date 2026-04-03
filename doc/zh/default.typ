@@ -40,6 +40,7 @@
 
 - *主目录下的每用户软件*：由该用户拥有并 `chown`，例如 `~/miniconda3` 或 `~/.local`，避免与系统全局安装混杂，便于备份与迁移。
 - *协作共享软件目录*：符号链接如 `~/shared_software` 指向同一棵共享树（如 `/data/shared_software`）；成员可在其中*安装或放置*软件、*读取并执行*他人添加的内容，但*不得删除或重命名*非己拥有的条目（目录 sticky `t` 与属主规则；见下文）。
+- *数据根便捷链接*：家目录下增加指向 `DATA_ROOT` 的符号链接（默认 `~/data` → `/data`），便于访问共享数据集、每用户 `*_data` 等，无需记忆宿主机上的数据根路径。链接名与是否启用由 `default-user-environment/config.env` 中 `USER_DATA_ROOT_LINK_NAME`、`ENABLE_DATA_ROOT_LINK` 控制；`add-user.sh` 在应用默认环境时会传入正确的 `DATA_ROOT`。
 - *可维护的默认配置*：骨架文件放在 `/etc/skel` 或 root 维护的模板目录，通过 `useradd -m -k` 或首次登录/创建后脚本复制到 `~`；敏感信息（API 密钥等）仍由用户自行负责。
 - *与权限模型一致*：能否*使用他人软件*取决于文件与目录的读/执行位；能否*删除他人条目*由 sticky 与属主规则及主目录隔离共同决定。
 
@@ -68,10 +69,20 @@ usermod -aG software user_a
 创建用户后，在主目录添加符号链接以提供稳定路径并便于说明：
 
 ```bash
-# root or provisioning script
+# root 或开通脚本
 ln -sfn /data/shared_software /home/user_a/shared_software
-chown -h user_a:user_a /home/user_a/shared_software   # link metadata only; target permissions follow the shared tree
+chown -h user_a:user_a /home/user_a/shared_software   # 仅改链接自身属主；目标目录权限仍由共享树决定
 ```
+
+可选：为数据根本身再建一个稳定入口（思路相同：固定路径、链接归用户所有）：
+
+```bash
+# root 或开通脚本（示例 DATA_ROOT=/data，链接名默认 data）
+ln -sfn /data /home/user_a/data
+chown -h user_a:user_a /home/user_a/data   # -h：只改符号链接，不改 /data 属主
+```
+
+若脱离 `add-user.sh` 单独执行 `apply-default-user-environment.sh`，请将 `DATA_ROOT` 设为创建该用户时使用的数据根路径。
 
 若需*组可写、其他只读*：保持目录上*其他*为 `r-x`（`3775` 示例已为 `rwxrwxr-x`，其他为 `r-x`），将需要写入的用户加入 `software`，只读用户不加入该组——依赖已发布文件上的 `o+r` / `o+x`（或站点级 `chmod` 策略）。
 

@@ -27,7 +27,7 @@ It is intentionally simple and does not try to be a full multi-tenant platform.
 
 - **`/data` layout**: mount point `755`, shared datasets under `${DATA_ROOT}/${SHARED_DATA_DIR_NAME}` (default `/data/shared_data`, group `shared_ro`, default mode `3775` per [doc/en/main.typ](doc/en/main.typ))
 - **Per user**: home and `/data/<username>_data` at mode `700`, optional `shared_ro` membership
-- **By default** (same run as above): `/data/shared_software` at `3775`, `software` group, `~/shared_software` symlink, optional files from `template/` (`bashrc.sh`, `zshrc.sh`, `config.fish`, `vimrc` / `vimrc.sh`, optional `install_miniconda.sh`; existing files are appended once with a marked template block unless you choose skip/force behavior)
+- **By default** (same run as above): `/data/shared_software` at `3775`, `software` group, `~/shared_software` symlink, a `~/data` symlink (name configurable) pointing at `DATA_ROOT` so users can open shared datasets and `*_data` trees without memorizing the host path, optional files from `template/` (`bashrc.sh`, `zshrc.sh`, `config.fish`, `vimrc` / `vimrc.sh`, optional `install_miniconda.sh`; existing files are appended once with a marked template block unless you choose skip/force behavior)
 - **Dry run**: `DRY_RUN=1` or `add-user.sh --dry-run`
 
 Skip the default-environment steps with `add-user.sh --no-default-user-env` if you only want the main.typ layout.
@@ -73,7 +73,7 @@ If you need stronger isolation or resource control, add those mechanisms separat
 sudo ./add-user.sh alice /data
 ```
 
-This initializes `/data` and the shared data directory (default `/data/shared_data`), creates `alice` with `/data/alice_data`, and applies the default shared-software environment unless you add `--no-default-user-env`.
+This initializes `/data` and the shared data directory (default `/data/shared_data`), creates `alice` with `/data/alice_data`, and applies the default shared-software environment (including `~/shared_software` and `~/data` → `DATA_ROOT`) unless you add `--no-default-user-env`.
 
 ## 6. Usage (`add-user.sh`)
 
@@ -88,7 +88,7 @@ Options:
 - `--join-shared-ro` / `--no-join-shared-ro`: add user to `shared_ro` (default: join)
 - `--uid UID`, `--password PASS`, `--shell PATH`
 - `--dry-run`: print actions only
-- `--no-default-user-env`: skip shared-software init and template / `~/shared_software` steps
+- `--no-default-user-env`: skip shared-software init and template / `~/shared_software` / `~/data` → `DATA_ROOT` steps
 - `--with-default-user-env`: explicit default (same as omitting the flag above)
 - `--no-join-software`, `--skip-templates`, `--force-templates`, `--skip-existing-templates`, `--install-miniconda`: only relevant when default user env runs
 - Template behavior when files already exist:
@@ -132,6 +132,8 @@ Loaded when the default-user-env phase runs; extends `isolation.env` with:
 
 - `SOFTWARE_ROOT`, `SOFTWARE_GROUP`, `SHARED_SOFTWARE_MODE` (`3775`)
 - `USER_SOFTWARE_LINK_NAME` (`shared_software`)
+- `USER_DATA_ROOT_LINK_NAME` (`data`): basename of `~/<name>` → `DATA_ROOT`
+- `ENABLE_DATA_ROOT_LINK` (`1`; set `0` to skip that symlink)
 - `TEMPLATE_DIR` (repo `template/` by default)
 - `ENABLE_SOFTWARE_AREA` (`1`; set `0` to disable that phase)
 
@@ -150,6 +152,7 @@ End-to-end permission checks inside a container (default image `ubuntu:24.04`; p
 ## 10. Known limits and operational notes
 
 - After copying a tree into `SOFTWARE_ROOT`, run `sudo ./fix-migrated-shared-software.sh /data/shared_software/yourtree` so the subtree uses `SOFTWARE_GROUP` and directory setgid (see [doc/en/default.typ](doc/en/default.typ)); add `--normalize-perms` for dirs `2755`, non-executables `644`, then prior executables `755`; `DRY_RUN=1` is supported.
+- If you run `default-user-environment/apply-default-user-environment.sh` by hand, set `DATA_ROOT` to the same path used when the account was created (for example `sudo DATA_ROOT=/mnt/research-data ./default-user-environment/apply-default-user-environment.sh alice`); `add-user.sh` passes this automatically.
 - Isolation is permission-based (UID/GID + modes), not a sandbox
 - Root can access all data by design
 - Tighter sharing: e.g. `SHARED_DATA_MODE=0750` via env before `add-user.sh`
@@ -158,4 +161,4 @@ End-to-end permission checks inside a container (default image `ubuntu:24.04`; p
 ## 11. Design reference
 
 - [doc/en/main.typ](doc/en/main.typ) — account and directory isolation
-- [doc/en/default.typ](doc/en/default.typ) — collaborative software directory, templates, optional Miniconda
+- [doc/en/default.typ](doc/en/default.typ) — collaborative software directory, `~/data` → `DATA_ROOT`, templates, optional Miniconda

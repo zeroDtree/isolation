@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Apply doc/default.typ to an existing user: software group, ~/shared_software symlink, shell templates,
-# optional Miniconda. Appends umask hint to ~/.bashrc, ~/.zshrc, ~/.config/fish/config.fish when present.
+# Apply doc/default.typ to an existing user: software group, ~/shared_software symlink, ~/USER_DATA_ROOT_LINK_NAME -> DATA_ROOT,
+# shell templates, optional Miniconda. Appends umask hint to ~/.bashrc, ~/.zshrc, ~/.config/fish/config.fish when present.
 #
 # Usage:
 #   sudo ./apply-default-user-environment.sh USERNAME [options]
@@ -14,7 +14,8 @@
 #   --install-miniconda    run TEMPLATE_DIR/install_miniconda.sh as the user (needs network)
 #   -h, --help             show help
 #
-# Env: see default-user-environment/config.env and isolation/isolation.env
+# Env: see default-user-environment/config.env and isolation/isolation.env (USER_DATA_ROOT_LINK_NAME, ENABLE_DATA_ROOT_LINK, …)
+#      DATA_ROOT must match the data root used for this user (add-user.sh passes it; standalone: sudo DATA_ROOT=... ./apply-...)
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -103,6 +104,14 @@ if [[ "${ENABLE_SOFTWARE_AREA}" == "1" ]] && [[ "$JOIN_SOFTWARE" -eq 1 ]]; then
   run chown -h "${USERNAME}:${USERNAME}" "${LINK_PATH}"
 else
   echo "[skip] software group and ~/${USER_SOFTWARE_LINK_NAME} link (ENABLE_SOFTWARE_AREA=${ENABLE_SOFTWARE_AREA}, join=${JOIN_SOFTWARE})"
+fi
+
+if [[ "${ENABLE_DATA_ROOT_LINK}" == "1" ]]; then
+  DATA_ROOT_LINK_PATH="${HOME_DIR}/${USER_DATA_ROOT_LINK_NAME}"
+  run ln -sfn "${DATA_ROOT}" "${DATA_ROOT_LINK_PATH}"
+  run chown -h "${USERNAME}:${USERNAME}" "${DATA_ROOT_LINK_PATH}"
+else
+  echo "[skip] ~/${USER_DATA_ROOT_LINK_NAME} -> DATA_ROOT (ENABLE_DATA_ROOT_LINK=${ENABLE_DATA_ROOT_LINK})"
 fi
 
 if [[ "$SKIP_TEMPLATES" -eq 0 ]] && [[ -d "${TEMPLATE_DIR}" ]]; then

@@ -194,6 +194,15 @@ for u in "${USER_A}" "${USER_B}"; do
 done
 ok "~/${USER_SOFTWARE_LINK_NAME} -> ${sw}, owned by user"
 
+echo "=== doc/default.typ: ~/${USER_DATA_ROOT_LINK_NAME} -> DATA_ROOT ==="
+for u in "${USER_A}" "${USER_B}"; do
+  dr_link="/home/${u}/${USER_DATA_ROOT_LINK_NAME}"
+  [[ -L "${dr_link}" ]] || fail "${dr_link} not symlink"
+  [[ "$(readlink -f "${dr_link}")" == "$(readlink -f "${DATA_ROOT}")" ]] || fail "DATA_ROOT symlink target"
+  [[ "$(stat -c '%U:%G' "${dr_link}")" == "${u}:${u}" ]] || fail "DATA_ROOT symlink lchown"
+done
+ok "~/${USER_DATA_ROOT_LINK_NAME} -> ${DATA_ROOT}, owned by user"
+
 if want_miniconda; then
   echo "=== miniconda: --install-miniconda for ${USER_A} ==="
   mc_root="/home/${USER_A}/miniconda3"
