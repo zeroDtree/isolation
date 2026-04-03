@@ -39,7 +39,7 @@
 == 设计原则
 
 - *主目录下的每用户软件*：由该用户拥有并 `chown`，例如 `~/miniconda3` 或 `~/.local`，避免与系统全局安装混杂，便于备份与迁移。
-- *协作共享软件目录*：符号链接如 `~/software` 指向同一棵共享树（如 `/data/shared_software`）；成员可在其中*安装或放置*软件、*读取并执行*他人添加的内容，但*不得删除或重命名*非己拥有的条目（目录 sticky `t` 与属主规则；见下文）。
+- *协作共享软件目录*：符号链接如 `~/shared_software` 指向同一棵共享树（如 `/data/shared_software`）；成员可在其中*安装或放置*软件、*读取并执行*他人添加的内容，但*不得删除或重命名*非己拥有的条目（目录 sticky `t` 与属主规则；见下文）。
 - *可维护的默认配置*：骨架文件放在 `/etc/skel` 或 root 维护的模板目录，通过 `useradd -m -k` 或首次登录/创建后脚本复制到 `~`；敏感信息（API 密钥等）仍由用户自行负责。
 - *与权限模型一致*：能否*使用他人软件*取决于文件与目录的读/执行位；能否*删除他人条目*由 sticky 与属主规则及主目录隔离共同决定。
 
@@ -69,8 +69,8 @@ usermod -aG software user_a
 
 ```bash
 # root or provisioning script
-ln -sfn /data/shared_software /home/user_a/software
-chown -h user_a:user_a /home/user_a/software   # link metadata only; target permissions follow the shared tree
+ln -sfn /data/shared_software /home/user_a/shared_software
+chown -h user_a:user_a /home/user_a/shared_software   # link metadata only; target permissions follow the shared tree
 ```
 
 若需*组可写、其他只读*：保持目录上*其他*为 `r-x`（`3775` 示例已为 `rwxrwxr-x`，其他为 `r-x`），将需要写入的用户加入 `software`，只读用户不加入该组——依赖已发布文件上的 `o+r` / `o+x`（或站点级 `chmod` 策略）。

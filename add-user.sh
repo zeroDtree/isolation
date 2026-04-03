@@ -2,7 +2,7 @@
 # One-shot setup wrapper:
 #   1) Initialize host layout under DATA_ROOT
 #   2) Create one isolated user
-#   3) Init shared software tree (doc/default.typ) and apply templates / ~/software link
+#   3) Init shared software tree (doc/default.typ) and apply templates / ~/shared_software link
 #
 # Usage:
 #   sudo ./add-user.sh USERNAME DATA_DIR [options]
@@ -16,7 +16,7 @@
 #   --dry-run                print commands only (no changes)
 #   --no-default-user-env    skip shared-software init and apply-default-user-environment.sh
 #   --with-default-user-env  run default user env (default; for clarity only)
-#   --no-join-software       pass through: do not add to SOFTWARE_GROUP or ~/software
+#   --no-join-software       pass through: do not add to SOFTWARE_GROUP or ~/shared_software
 #   --skip-templates         pass through: do not apply files from TEMPLATE_DIR
 #   --force-templates        pass through: overwrite existing rc files from templates
 #   --skip-existing-templates pass through: keep existing files unchanged (no append)

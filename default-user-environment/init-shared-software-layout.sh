@@ -22,4 +22,4 @@ run chown "root:${SOFTWARE_GROUP}" "${SOFTWARE_ROOT}"
 run chmod "${SHARED_SOFTWARE_MODE}" "${SOFTWARE_ROOT}"
 
 echo "ok: ${SOFTWARE_ROOT} ready (group ${SOFTWARE_GROUP}, mode ${SHARED_SOFTWARE_MODE})"
-echo "    add users to the group and run apply-default-user-environment.sh for ~/software link"
+echo "    add users to the group and run apply-default-user-environment.sh for ~/shared_software link"

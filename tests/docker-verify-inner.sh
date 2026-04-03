@@ -48,6 +48,8 @@ chmod +x add-user.sh remove-user.sh fix-migrated-shared-software.sh isolation/*.
 
 # shellcheck source=isolation/isolation.env
 source /work/isolation/isolation.env
+# shellcheck source=default-user-environment/config.env
+source /work/default-user-environment/config.env
 
 for u in "${USER_A}" "${USER_B}" "${USER_C}" "${USER_PW}"; do
   id "${u}" &>/dev/null && userdel -r "${u}" 2>/dev/null || true
@@ -183,13 +185,14 @@ id "${USER_C}" | grep -q software && fail "${USER_C} should not be in software f
 expect_fail "${USER_C} (no software) cannot create in ${sw}" \
   as_user "${USER_C}" touch "${sw}/by_${USER_C}" 2>/dev/null
 
-echo "=== doc/default.typ: ~/software symlink ==="
+echo "=== doc/default.typ: ~/${USER_SOFTWARE_LINK_NAME} symlink ==="
 for u in "${USER_A}" "${USER_B}"; do
-  [[ -L "/home/${u}/software" ]] || fail "/home/${u}/software not symlink"
-  [[ "$(readlink -f "/home/${u}/software")" == "${sw}" ]] || fail "symlink target"
-  [[ "$(stat -c '%U:%G' "/home/${u}/software")" == "${u}:${u}" ]] || fail "symlink lchown"
+  link="/home/${u}/${USER_SOFTWARE_LINK_NAME}"
+  [[ -L "${link}" ]] || fail "${link} not symlink"
+  [[ "$(readlink -f "${link}")" == "${sw}" ]] || fail "symlink target"
+  [[ "$(stat -c '%U:%G' "${link}")" == "${u}:${u}" ]] || fail "symlink lchown"
 done
-ok "~/software -> ${sw}, owned by user"
+ok "~/${USER_SOFTWARE_LINK_NAME} -> ${sw}, owned by user"
 
 if want_miniconda; then
   echo "=== miniconda: --install-miniconda for ${USER_A} ==="

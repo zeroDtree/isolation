@@ -111,7 +111,9 @@ function start_if_not_running
 end
 
 
-set -gx CUDA_DIR "$HOME/software/cuda"
+if not set -q CUDA_DIRS
+	set -gx CUDA_DIRS "$HOME/shared_software/cuda" "$HOME/software/cuda"
+end
 # Fish does not treat \t as a tab inside double quotes; use a real TAB (U+0009).
 set -g __cuda_tab (printf '\t')
 
@@ -146,8 +148,9 @@ end
 
 function __cuda_collect_candidates
 	set -l c
-	if test -d "$CUDA_DIR"
-		for d in (command find "$CUDA_DIR" -maxdepth 1 -mindepth 1 -type d -name 'cuda-*' 2>/dev/null)
+	for base in $CUDA_DIRS
+		test -d "$base"; or continue
+		for d in (command find "$base" -maxdepth 1 -mindepth 1 -type d -name 'cuda-*' 2>/dev/null)
 			set -a c $d
 		end
 	end
@@ -303,7 +306,7 @@ if test (count $__cuda_lines) -gt 0
 	set -l __cuda_fields (string split $__cuda_tab -- $__cuda_last)
 	__cuda_apply "$__cuda_fields[2]"
 else
-	echo "CUDA: no installation found (scanned CUDA_DIR and common system paths)." >&2
+	echo "CUDA: no installation found (scanned CUDA_DIRS and common system paths)." >&2
 end
 
 alias g++ 'g++ -finput-charset=UTF-8 -fexec-charset=UTF-8'

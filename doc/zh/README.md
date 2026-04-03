@@ -27,7 +27,7 @@
 
 - **`/data` 布局**：挂载点 `755`，共享数据集在 `${DATA_ROOT}/${SHARED_DATA_DIR_NAME}`（默认 `/data/shared_data`，组 `shared_ro`，默认模式 `3775`，见 [main.typ](main.typ)）
 - **每用户**：主目录与 `/data/<用户名>_data` 为 `700`，可选加入 `shared_ro`
-- **默认**（同一次运行）：`/data/shared_software` 为 `3775`、`software` 组、`~/software` 符号链接，以及来自 `template/` 的可选文件（`bashrc.sh`、`zshrc.sh`、`config.fish`、`vimrc` / `vimrc.sh`、可选 `install_miniconda.sh`）；当目标文件已存在时，默认以“带标记的模板块”追加一次（幂等），也可改为跳过或覆盖
+- **默认**（同一次运行）：`/data/shared_software` 为 `3775`、`software` 组、`~/shared_software` 符号链接，以及来自 `template/` 的可选文件（`bashrc.sh`、`zshrc.sh`、`config.fish`、`vimrc` / `vimrc.sh`、可选 `install_miniconda.sh`）；当目标文件已存在时，默认以“带标记的模板块”追加一次（幂等），也可改为跳过或覆盖
 - **演练**：`DRY_RUN=1` 或 `add-user.sh --dry-run`
 
 若只需要 main.typ 中的目录布局、不需要默认环境步骤，可使用 `add-user.sh --no-default-user-env`。
@@ -88,7 +88,7 @@ sudo ./add-user.sh 用户名 数据目录 [选项…]
 - `--join-shared-ro` / `--no-join-shared-ro`：是否将用户加入 `shared_ro`（默认：加入）
 - `--uid UID`、`--password PASS`、`--shell PATH`
 - `--dry-run`：仅打印将要执行的操作
-- `--no-default-user-env`：跳过共享软件初始化、模板与 `~/software` 相关步骤
+- `--no-default-user-env`：跳过共享软件初始化、模板与 `~/shared_software` 相关步骤
 - `--with-default-user-env`：显式启用默认环境（与省略上述「关闭」类标志相同）
 - `--no-join-software`、`--skip-templates`、`--force-templates`、`--skip-existing-templates`、`--install-miniconda`：仅在默认用户环境阶段生效
 - 模板文件已存在时的行为：
@@ -131,7 +131,7 @@ sudo ./remove-user.sh 用户名 数据目录 [选项…]
 在默认用户环境阶段加载；在 `isolation.env` 基础上扩展：
 
 - `SOFTWARE_ROOT`、`SOFTWARE_GROUP`、`SHARED_SOFTWARE_MODE`（`3775`）
-- `USER_SOFTWARE_LINK_NAME`（`software`）
+- `USER_SOFTWARE_LINK_NAME`（`shared_software`）
 - `TEMPLATE_DIR`（默认同仓库 `template/`）
 - `ENABLE_SOFTWARE_AREA`（`1`；设为 `0` 可关闭该阶段）
 

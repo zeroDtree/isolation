@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Apply doc/default.typ to an existing user: software group, ~/software symlink, shell templates,
+# Apply doc/default.typ to an existing user: software group, ~/shared_software symlink, shell templates,
 # optional Miniconda. Appends umask hint to ~/.bashrc, ~/.zshrc, ~/.config/fish/config.fish when present.
 #
 # Usage:
 #   sudo ./apply-default-user-environment.sh USERNAME [options]
 #
 # Options:
-#   --no-join-software     do not add user to SOFTWARE_GROUP or create ~/software link
+#   --no-join-software     do not add user to SOFTWARE_GROUP or create ~/shared_software link
 #   --skip-templates          do not apply files from TEMPLATE_DIR
 #   --force-templates         overwrite destination files from templates
 #   --skip-existing-templates keep existing files unchanged (no append)
@@ -102,7 +102,7 @@ if [[ "${ENABLE_SOFTWARE_AREA}" == "1" ]] && [[ "$JOIN_SOFTWARE" -eq 1 ]]; then
   run ln -sfn "${SOFTWARE_ROOT}" "${LINK_PATH}"
   run chown -h "${USERNAME}:${USERNAME}" "${LINK_PATH}"
 else
-  echo "[skip] software group and ~/software link (ENABLE_SOFTWARE_AREA=${ENABLE_SOFTWARE_AREA}, join=${JOIN_SOFTWARE})"
+  echo "[skip] software group and ~/${USER_SOFTWARE_LINK_NAME} link (ENABLE_SOFTWARE_AREA=${ENABLE_SOFTWARE_AREA}, join=${JOIN_SOFTWARE})"
 fi
 
 if [[ "$SKIP_TEMPLATES" -eq 0 ]] && [[ -d "${TEMPLATE_DIR}" ]]; then

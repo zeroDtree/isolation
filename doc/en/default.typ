@@ -39,7 +39,7 @@ This document describes how to prepare a default working environment in bulk or 
 == Design principles
 
 - *Per-user software under the home directory*: owned and `chown`ed by that user (e.g. `~/miniconda3` or `~/.local`), avoiding mixing with system-wide installs and simplifying backup and migration.
-- *Collaborative shared software directory*: symbolic links such as `~/software` point at one shared tree (e.g. `/data/shared_software`); members may *install or place* software there, *read and execute* content others added, but *must not delete or rename* entries they do not own (sticky bit `t` on the directory and ownership rules; see below).
+- *Collaborative shared software directory*: symbolic links such as `~/shared_software` point at one shared tree (e.g. `/data/shared_software`); members may *install or place* software there, *read and execute* content others added, but *must not delete or rename* entries they do not own (sticky bit `t` on the directory and ownership rules; see below).
 - *Maintainable default configuration*: skeleton files live in `/etc/skel` or a root-maintained template directory and are copied to `~` via `useradd -m -k` or a first-login / post-create script; sensitive values (API keys, etc.) remain the user's responsibility.
 - *Consistent with the permission model*: whether someone can *use another user's software* depends on read/execute bits on files and directories; whether they can *delete another user's entries* is governed by the sticky bit and ownership, alongside home-directory isolation.
 
@@ -69,8 +69,8 @@ After creating the user, add a symbolic link in the home directory for a stable 
 
 ```bash
 # root or provisioning script
-ln -sfn /data/shared_software /home/user_a/software
-chown -h user_a:user_a /home/user_a/software   # link metadata only; target permissions follow the shared tree
+ln -sfn /data/shared_software /home/user_a/shared_software
+chown -h user_a:user_a /home/user_a/shared_software   # link metadata only; target permissions follow the shared tree
 ```
 
 For *group-writable, others read-only*: keep *others* on the directory as `r-x` (the `3775` example already yields `rwxrwxr-x` with others `r-x`), add every user who should write to `software`, and omit read-only users from the group—relying on `o+r` / `o+x` on published files (or a site-wide `chmod` policy).

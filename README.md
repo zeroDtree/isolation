@@ -27,7 +27,7 @@ It is intentionally simple and does not try to be a full multi-tenant platform.
 
 - **`/data` layout**: mount point `755`, shared datasets under `${DATA_ROOT}/${SHARED_DATA_DIR_NAME}` (default `/data/shared_data`, group `shared_ro`, default mode `3775` per [doc/en/main.typ](doc/en/main.typ))
 - **Per user**: home and `/data/<username>_data` at mode `700`, optional `shared_ro` membership
-- **By default** (same run as above): `/data/shared_software` at `3775`, `software` group, `~/software` symlink, optional files from `template/` (`bashrc.sh`, `zshrc.sh`, `config.fish`, `vimrc` / `vimrc.sh`, optional `install_miniconda.sh`; existing files are appended once with a marked template block unless you choose skip/force behavior)
+- **By default** (same run as above): `/data/shared_software` at `3775`, `software` group, `~/shared_software` symlink, optional files from `template/` (`bashrc.sh`, `zshrc.sh`, `config.fish`, `vimrc` / `vimrc.sh`, optional `install_miniconda.sh`; existing files are appended once with a marked template block unless you choose skip/force behavior)
 - **Dry run**: `DRY_RUN=1` or `add-user.sh --dry-run`
 
 Skip the default-environment steps with `add-user.sh --no-default-user-env` if you only want the main.typ layout.
@@ -88,7 +88,7 @@ Options:
 - `--join-shared-ro` / `--no-join-shared-ro`: add user to `shared_ro` (default: join)
 - `--uid UID`, `--password PASS`, `--shell PATH`
 - `--dry-run`: print actions only
-- `--no-default-user-env`: skip shared-software init and template / `~/software` steps
+- `--no-default-user-env`: skip shared-software init and template / `~/shared_software` steps
 - `--with-default-user-env`: explicit default (same as omitting the flag above)
 - `--no-join-software`, `--skip-templates`, `--force-templates`, `--skip-existing-templates`, `--install-miniconda`: only relevant when default user env runs
 - Template behavior when files already exist:
@@ -131,7 +131,7 @@ Override defaults with environment variables; use `sudo -E ./add-user.sh …` if
 Loaded when the default-user-env phase runs; extends `isolation.env` with:
 
 - `SOFTWARE_ROOT`, `SOFTWARE_GROUP`, `SHARED_SOFTWARE_MODE` (`3775`)
-- `USER_SOFTWARE_LINK_NAME` (`software`)
+- `USER_SOFTWARE_LINK_NAME` (`shared_software`)
 - `TEMPLATE_DIR` (repo `template/` by default)
 - `ENABLE_SOFTWARE_AREA` (`1`; set `0` to disable that phase)
 

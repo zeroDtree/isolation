@@ -117,7 +117,8 @@ start_if_not_running() {
   fi
 }
 
-export CUDA_DIR="${HOME}/software/cuda"
+: "${CUDA_DIRS:=${HOME}/shared_software/cuda:${HOME}/software/cuda}"
+export CUDA_DIRS
 __CUDA_TAB=$'\t'
 
 __cuda_realpath() {
@@ -148,12 +149,18 @@ __cuda_version_for_root() {
 }
 
 __cuda_collect_candidates() {
-  local d
-  if [[ -d "${CUDA_DIR}" ]]; then
-    while IFS= read -r d; do
-      [[ -n "${d}" ]] && printf '%s\n' "${d}"
-    done < <(command find "${CUDA_DIR}" -maxdepth 1 -mindepth 1 -type d -name 'cuda-*' 2>/dev/null)
-  fi
+  local d base _tmp
+  _tmp="${CUDA_DIRS}:"
+  while [[ -n "${_tmp}" ]]; do
+    base="${_tmp%%:*}"
+    _tmp="${_tmp#*:}"
+    [[ -z "${base}" ]] && continue
+    if [[ -d "${base}" ]]; then
+      while IFS= read -r d; do
+        [[ -n "${d}" ]] && printf '%s\n' "${d}"
+      done < <(command find "${base}" -maxdepth 1 -mindepth 1 -type d -name 'cuda-*' 2>/dev/null)
+    fi
+  done
   for d in /usr/local/cuda /opt/cuda /opt/homebrew/opt/cuda /usr/local/opt/cuda; do
     [[ -d "${d}" ]] && printf '%s\n' "${d}"
   done
@@ -363,7 +370,7 @@ if ((${#__cuda_lines[@]} > 0)); then
   __cuda_pa="${__cuda_last#*"${__CUDA_TAB}"}"
   __cuda_apply "${__cuda_pa}"
 else
-  echo "CUDA: no installation found (scanned CUDA_DIR and common system paths)." >&2
+  echo "CUDA: no installation found (scanned CUDA_DIRS and common system paths)." >&2
 fi
 unset __cuda_lines __cuda_last __cuda_pa last_idx line
 
