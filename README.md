@@ -9,6 +9,7 @@ Chinese documentation: [doc/zh/README.md](doc/zh/README.md).
   - [4. Prerequisites](#4-prerequisites)
   - [5. Quick start](#5-quick-start)
   - [6. Usage (`add-user.sh`)](#6-usage-add-usersh)
+    - [6.1. Remove a user](#61-remove-a-user)
   - [7. Configuration](#7-configuration)
     - [7.1. `isolation/isolation.env`](#71-isolationisolationenv)
     - [7.2. `default-user-environment/config.env`](#72-default-user-environmentconfigenv)
@@ -107,7 +108,7 @@ sudo ./add-user.sh erin /data --no-default-user-env
 sudo ./add-user.sh frank /data --install-miniconda
 ```
 
-### Remove a user
+### 6.1. Remove a user
 
 ```bash
 sudo ./remove-user.sh USERNAME DATA_DIR [options]

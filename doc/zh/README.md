@@ -9,6 +9,7 @@
   - [4. 前置条件](#4-前置条件)
   - [5. 快速开始](#5-快速开始)
   - [6. 用法（add-user.sh）](#6-用法add-usersh)
+    - [6.1. 删除用户](#61-删除用户)
   - [7. 配置](#7-配置)
     - [7.1. `isolation/isolation.env`](#71-isolationisolationenv)
     - [7.2. `default-user-environment/config.env`](#72-default-user-environmentconfigenv)
@@ -107,7 +108,7 @@ sudo ./add-user.sh erin /data --no-default-user-env
 sudo ./add-user.sh frank /data --install-miniconda
 ```
 
-### 删除用户
+### 6.1. 删除用户
 
 ```bash
 sudo ./remove-user.sh 用户名 数据目录 [选项…]
