@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
-# One-time host layout: SOFTWARE_GROUP, SOFTWARE_ROOT with sticky+setgid (see doc/default.typ).
+# One-time host layout: SOFTWARE_GROUP, SOFTWARE_ROOT with sticky+setgid (see doc/en/default.md).
 #
 # Usage: sudo ./init-shared-software-layout.sh
-# Env:   default-user-environment/config.env (override SOFTWARE_ROOT, SHARED_SOFTWARE_MODE, DRY_RUN, …)
+# Env:   common/config.env (override SOFTWARE_ROOT, SHARED_SOFTWARE_MODE, DRY_RUN, …)
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=common.sh
-source "${SCRIPT_DIR}/common.sh"
+# shellcheck source=../common/config.env
+source "${SCRIPT_DIR}/../common/config.env"
+# shellcheck source=../common/utils.sh
+source "${SCRIPT_DIR}/../common/utils.sh"
 
 require_root
 
@@ -22,4 +24,3 @@ run chown "root:${SOFTWARE_GROUP}" "${SOFTWARE_ROOT}"
 run chmod "${SHARED_SOFTWARE_MODE}" "${SOFTWARE_ROOT}"
 
 echo "ok: ${SOFTWARE_ROOT} ready (group ${SOFTWARE_GROUP}, mode ${SHARED_SOFTWARE_MODE})"
-echo "    add users to the group and run apply-default-user-environment.sh for ~/shared_software link"

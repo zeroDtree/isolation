@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Invoked inside Docker as root; workspace mounted at /work.
-# Validates permissions against doc/main.typ and doc/default.typ (isolation, shared_ro, 3775 sticky).
+# Validates permissions against doc/main.typ and doc/en/default.md (isolation, shared_ro, 3775 sticky).
 # Env: INSTALL_MINICONDA (default 1) — set 0 to skip add-user.sh --install-miniconda and conda checks.
 set -euo pipefail
 
@@ -46,10 +46,8 @@ expect_fail() {
 cd /work
 chmod +x add-user.sh remove-user.sh fix-migrated-shared-software.sh isolation/*.sh default-user-environment/*.sh 2>/dev/null || true
 
-# shellcheck source=isolation/isolation.env
-source /work/isolation/isolation.env
-# shellcheck source=default-user-environment/config.env
-source /work/default-user-environment/config.env
+# shellcheck source=common/config.env
+source /work/common/config.env
 
 for u in "${USER_A}" "${USER_B}" "${USER_C}" "${USER_PW}"; do
   id "${u}" &>/dev/null && userdel -r "${u}" 2>/dev/null || true
@@ -103,7 +101,7 @@ expect_fail "${USER_A} cannot read ${USER_B} file in home" \
 expect_fail "${USER_A} cannot list ${USER_B} private data dir" \
   as_user "${USER_A}" ls "/data/${USER_B}_data" 2>/dev/null
 
-echo "=== doc/default.typ: /data/shared_software 3775 (setgid + sticky) ==="
+echo "=== doc/en/default.md: /data/shared_software 3775 (setgid + sticky) ==="
 sw="/data/shared_software"
 [[ "$(stat -c '%a' "${sw}")" == "3775" ]] || fail "${sw} mode want 3775 got $(stat -c '%a' "${sw}")"
 # Sticky and setgid bits (stat %a four-digit octal on GNU stat)
@@ -119,7 +117,7 @@ for u in "${USER_A}" "${USER_B}"; do
 done
 ok "both users in software group"
 
-echo "=== doc/default.typ: sticky — cannot unlink peer file; can read ==="
+echo "=== doc/en/default.md: sticky — cannot unlink peer file; can read ==="
 as_user "${USER_A}" touch "${sw}/file_by_${USER_A}"
 as_user "${USER_A}" chmod 664 "${sw}/file_by_${USER_A}" 2>/dev/null || true
 
@@ -185,7 +183,7 @@ id "${USER_C}" | grep -q software && fail "${USER_C} should not be in software f
 expect_fail "${USER_C} (no software) cannot create in ${sw}" \
   as_user "${USER_C}" touch "${sw}/by_${USER_C}" 2>/dev/null
 
-echo "=== doc/default.typ: ~/${USER_SOFTWARE_LINK_NAME} symlink ==="
+echo "=== doc/en/default.md: ~/${USER_SOFTWARE_LINK_NAME} symlink ==="
 for u in "${USER_A}" "${USER_B}"; do
   link="/home/${u}/${USER_SOFTWARE_LINK_NAME}"
   [[ -L "${link}" ]] || fail "${link} not symlink"
@@ -194,7 +192,7 @@ for u in "${USER_A}" "${USER_B}"; do
 done
 ok "~/${USER_SOFTWARE_LINK_NAME} -> ${sw}, owned by user"
 
-echo "=== doc/default.typ: ~/${USER_DATA_ROOT_LINK_NAME} -> DATA_ROOT ==="
+echo "=== doc/en/default.md: ~/${USER_DATA_ROOT_LINK_NAME} -> DATA_ROOT ==="
 for u in "${USER_A}" "${USER_B}"; do
   dr_link="/home/${u}/${USER_DATA_ROOT_LINK_NAME}"
   [[ -L "${dr_link}" ]] || fail "${dr_link} not symlink"
@@ -260,4 +258,4 @@ userdel -r "${USER_A}" 2>/dev/null || true
 userdel -r "${USER_B}" 2>/dev/null || true
 userdel -r "${USER_PW}" 2>/dev/null || true
 
-echo "=== all permission checks passed (main.typ + default.typ) ==="
+echo "=== all permission checks passed (add-user.md + default.md) ==="

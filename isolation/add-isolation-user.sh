@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Create a research user with home 700, /data/<prefix><user><suffix>, shared_ro by default.
+# @help-begin
+# Create a research user with private home and data dir modes (USER_HOME_MODE, USER_DATA_DIR_MODE; default 700), shared_ro by default.
 # Directory permissions only — no CPU/memory/task limits (see doc/main.typ).
 #
 # Usage:
@@ -18,12 +19,13 @@
 #   sudo ./add-isolation-user.sh bob --join-shared-ro
 #   sudo ./add-isolation-user.sh carol --no-join-shared-ro
 #
-# Defaults: see isolation.env (DATA_ROOT, USER_DATA_PREFIX, USER_DATA_SUFFIX, …)
+# Defaults: see common/config.env (DATA_ROOT, USER_HOME_MODE, USER_DATA_DIR_MODE, …)
+# @help-end
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=isolation-common.sh
-source "${SCRIPT_DIR}/isolation-common.sh"
+# shellcheck source=../common/utils.sh
+source "${SCRIPT_DIR}/../common/utils.sh"
 
 JOIN_SHARED_RO=1
 SHELL_PATH="${DEFAULT_LOGIN_SHELL}"
@@ -31,7 +33,7 @@ EXPLICIT_UID=""
 LOGIN_PASSWORD=""
 
 usage() {
-  sed -n '1,21p' "$0" | tail -n +2
+  awk '/^# @help-begin$/{f=1; next} /^# @help-end$/{f=0} f' "$0"
   exit 0
 }
 
@@ -101,8 +103,8 @@ USER_DATA="${DATA_ROOT}/${USER_DATA_PREFIX}${USERNAME}${USER_DATA_SUFFIX}"
 
 run mkdir -p "$USER_DATA"
 run chown -R "${USERNAME}:${USERNAME}" "$USER_DATA"
-run chmod 700 "$USER_DATA"
-run chmod 700 "$HOME_DIR"
+run chmod "${USER_DATA_DIR_MODE}" "$USER_DATA"
+run chmod "${USER_HOME_MODE}" "$HOME_DIR"
 
 if [[ "$JOIN_SHARED_RO" -eq 1 ]]; then
   run groupadd -f "${SHARED_GROUP}"
@@ -122,21 +124,8 @@ case "${SHELL_PATH##*/}" in
     ;;
 esac
 
-if [[ "${DRY_RUN}" != 1 ]]; then
-  run mkdir -p "$(dirname "$USER_RC")"
-  run touch "$USER_RC"
-  if ! grep -qF "${ISOLATION_BASHRC_MARK}" "$USER_RC" 2>/dev/null; then
-    cat >>"$USER_RC" <<EOF
-
-${ISOLATION_BASHRC_MARK}
-umask ${USER_UMASK_HINT}
-EOF
-  fi
-  run chown "${USERNAME}:${USERNAME}" "$USER_RC"
-else
-  echo "[dry-run] append umask ${USER_UMASK_HINT} to ${USER_RC} if missing"
-fi
+append_isolation_umask_rc "${USERNAME}" "${USER_RC}" 1
 
 echo "ok: user ${USERNAME} (uid ${UID_VAL})"
-echo "    home ${HOME_DIR} (700), data ${USER_DATA} (700)"
+echo "    home ${HOME_DIR} (${USER_HOME_MODE}), data ${USER_DATA} (${USER_DATA_DIR_MODE})"
 [[ "$JOIN_SHARED_RO" -eq 1 ]] && echo "    supplementary group: ${SHARED_GROUP} (${SHARED_DATA_PATH})"

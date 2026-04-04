@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# @help-begin
 # Remove a user created by add-user.sh: deletes the account (and by default home + /data/<user>_data).
 # Does not undo host init (shared data dir under DATA_ROOT, /data/shared_software) or shared trees.
 #
@@ -12,6 +13,7 @@
 #   sudo ./remove-user.sh alice /data
 #   sudo ./remove-user.sh bob /data --dry-run
 #   sudo ./remove-user.sh carol /mnt/research-data --keep-user-data
+# @help-end
 
 set -euo pipefail
 
@@ -19,7 +21,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REMOVE_SCRIPT="${SCRIPT_DIR}/isolation/remove-isolation-user.sh"
 
 usage() {
-  sed -n '1,16p' "$0" | tail -n +2
+  awk '/^# @help-begin$/{f=1; next} /^# @help-end$/{f=0} f' "$0"
   exit 0
 }
 

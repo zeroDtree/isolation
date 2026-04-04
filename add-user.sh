@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
+# @help-begin
 # One-shot setup wrapper:
 #   1) Initialize host layout under DATA_ROOT
 #   2) Create one isolated user
-#   3) Init shared software tree (doc/default.typ) and apply templates / ~/shared_software / ~/data -> DATA_ROOT
+#   3) Init shared software tree (doc/en/default.md) and apply templates / ~/shared_software / ~/data -> DATA_ROOT
 #
 # Usage:
 #   sudo ./add-user.sh USERNAME DATA_DIR [options]
@@ -12,7 +13,7 @@
 #   --no-join-shared-ro      do not add user into shared_ro group
 #   --uid UID                explicit UID for useradd
 #   --password PASS          set login password for the new user
-#   --shell PATH             login shell (default from isolation.env)
+#   --shell PATH             login shell (default from common/config.env)
 #   --dry-run                print commands only (no changes)
 #   --no-default-user-env    skip shared-software init and apply-default-user-environment.sh
 #   --with-default-user-env  run default user env (default; for clarity only)
@@ -20,7 +21,7 @@
 #   --skip-templates         pass through: do not apply files from TEMPLATE_DIR
 #   --force-templates        pass through: overwrite existing rc files from templates
 #   --skip-existing-templates pass through: keep existing files unchanged (no append)
-#   --install-miniconda      pass through: run template/install_miniconda.sh as user
+#   --install-miniconda      pass through: run default-user-environment/install_miniconda.sh as user
 #   -h, --help               show help
 #
 # Examples:
@@ -30,6 +31,7 @@
 #   sudo ./add-user.sh carol /data --uid 2301 --shell /bin/zsh
 #   sudo ./add-user.sh dave /data --no-default-user-env
 #   sudo ./add-user.sh eve /data --install-miniconda
+# @help-end
 
 set -euo pipefail
 
@@ -40,7 +42,7 @@ INIT_SHARED_SOFTWARE="${SCRIPT_DIR}/default-user-environment/init-shared-softwar
 APPLY_DEFAULT_ENV="${SCRIPT_DIR}/default-user-environment/apply-default-user-environment.sh"
 
 usage() {
-  sed -n '1,33p' "$0" | tail -n +2
+  awk '/^# @help-begin$/{f=1; next} /^# @help-end$/{f=0} f' "$0"
   exit 0
 }
 
@@ -141,7 +143,7 @@ echo "[step 2/${_TOTAL}] create isolated user ${USERNAME}"
 DATA_ROOT="${DATA_DIR}" "${ADD_USER_SCRIPT}" "${ADD_ARGS[@]}"
 
 if [[ "${DEFAULT_USER_ENV}" -eq 1 ]]; then
-  echo "[step 3/${_TOTAL}] init shared software layout (doc/default.typ)"
+  echo "[step 3/${_TOTAL}] init shared software layout (doc/en/default.md)"
   "${INIT_SHARED_SOFTWARE}"
 
   echo "[step 4/${_TOTAL}] apply default user environment for ${USERNAME}"

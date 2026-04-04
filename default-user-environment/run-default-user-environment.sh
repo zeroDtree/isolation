@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# @help-begin
 # Run init-shared-software-layout then apply-default-user-environment for one user.
 #
 # Usage:
@@ -8,14 +9,14 @@
 # --skip-templates, --force-templates, --install-miniconda).
 #
 # Env: DATA_ROOT and others apply to isolation scripts only if you chain with add-user.sh separately;
-# for this wrapper, init uses SOFTWARE_* from config.env.
+# for this wrapper, init uses SOFTWARE_* from common/config.env.
+# @help-end
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
-  echo "Usage: sudo $0 USERNAME [apply-options...]" >&2
-  echo "  apply-options: --no-join-software | --skip-templates | --force-templates | --install-miniconda" >&2
+  awk '/^# @help-begin$/{f=1; next} /^# @help-end$/{f=0} f' "$0"
   exit 1
 }
 

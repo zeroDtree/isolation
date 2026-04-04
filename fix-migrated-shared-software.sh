@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
+# @help-begin
 # After copying a software tree into SOFTWARE_ROOT, align group and directory
-# setgid so the collaborative layout matches doc/en/default.typ (sticky on the
+# setgid so the collaborative layout matches doc/en/default.md (sticky on the
 # root is already set by init-shared-software-layout.sh).
 #
 # Usage:
@@ -9,27 +10,28 @@
 # Options:
 #   --normalize-perms   Also chmod directories to 2755 (setgid + rwxr-xr-x); files
 #                       without +x -> 644, files with any +x -> 755 (644 pass first).
+#   -h, --help          show this help
 #
 # Default (without --normalize-perms): chgrp -R and chmod g+s on directories only;
 # regular file modes are unchanged.
 #
 # Each PATH must lie under SOFTWARE_ROOT (absolute or relative).
 #
-# Env: DRY_RUN=1 to print actions only; SOFTWARE_ROOT / SOFTWARE_GROUP from config.env
+# Env: DRY_RUN=1 to print actions only; SOFTWARE_ROOT / SOFTWARE_GROUP from common/config.env
+# @help-end
 
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=default-user-environment/common.sh
-source "${REPO_ROOT}/default-user-environment/common.sh"
+# shellcheck source=common/config.env
+source "${REPO_ROOT}/common/config.env"
+# shellcheck source=common/utils.sh
+source "${REPO_ROOT}/common/utils.sh"
 
 NORMALIZE_PERMS=0
 PATHS=()
 
 usage() {
-  echo "usage: sudo $0 [--normalize-perms] PATH [PATH ...]" >&2
-  echo "  Default: chgrp -R ${SOFTWARE_GROUP} and chmod g+s on directories." >&2
-  echo "  --normalize-perms: dirs 2755; non-exec files 644, then +x files 755." >&2
-  echo "  Each PATH must be inside SOFTWARE_ROOT (${SOFTWARE_ROOT})." >&2
+  awk '/^# @help-begin$/{f=1; next} /^# @help-end$/{f=0} f' "$0"
   exit 1
 }
 

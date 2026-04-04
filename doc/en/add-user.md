@@ -1,48 +1,14 @@
-
-#set document(
-  title: "Server Permission Isolation Design (User Level)",
-  author: "Administrator",
-  date: datetime.today(),
-)
-#set page(
-  numbering: "1",
-  number-align: center,
-  margin: (x: 2.5cm, y: 2.5cm),
-)
-#set text(
-  font: ("Noto Serif CJK SC", "New Computer Modern", "Source Han Serif SC"),
-  size: 11pt,
-  lang: "en",
-)
-#set heading(numbering: "1.")
-#set par(justify: true, leading: 0.8em)
-
-#show raw.where(block: false): box.with(
-  fill: luma(240),
-  inset: (x: 3pt, y: 0pt),
-  outset: (y: 3pt),
-  radius: 2pt,
-)
-#show raw.where(block: true): block.with(
-  fill: luma(240),
-  inset: 10pt,
-  radius: 4pt,
-  width: 100%,
-)
-#show link: underline
-// -- Main content ------------------------------------------------------------
-
-= Server Permission Isolation Design (User Level)
+# Server Permission Isolation Design (User Level)
 
 This document describes a multi-user isolation design based on Linux accounts and *directory permissions*, intended for shared research servers. Each user has an independent system account and home directory, and logs in through a single SSH service with their own username. Data is split by user directories, and cross-user visibility is restricted through UID/GID and file permissions. *This document does not cover CPU, memory, process-count quotas, or cgroup limits*; those can be added separately if needed.
 
-== Design Goals
+## Design Goals
 
 - *Security isolation*: each user's home and private data directories are unreadable to others; shared data is read-only or controlled writable.
 - *Operational simplicity*: account and directory permissions are managed with standard tools such as `useradd`, `chown`, `chmod`, and groups.
 - *User-friendly access*: a unified SSH entry point (single port) with session separation by username.
 
-== Overall Architecture
+## Overall Architecture
 
 ```
 Host machine (single Linux system)
@@ -56,7 +22,7 @@ Host machine (single Linux system)
 
 After login through `ssh user_a@host`, processes run under that user's UID and can only access paths authorized to that UID/group. This model controls access with UID/GID and file permissions, while processes still share the same kernel namespace on the host. Shared datasets can be protected from accidental deletion by read-only mounts or strict directory modes (for example `755` with root ownership and read-only access for others).
 
-== Directory and Data Layout
+## Directory and Data Layout
 
 ```
 Host filesystem:
@@ -75,34 +41,30 @@ Host filesystem:
 - Shared directories are managed by root or `shared_ro`, without `o+w`; if needed, use sticky-bit subdirectories or dedicated upload areas.
 - System software is installed by root; user-level Python/conda environments stay in each user's own home.
 
-== Account and Permission Rules
+## Account and Permission Rules
 
-=== Users and Groups
+### Users and Groups
 
 - Each researcher should have one *login account* (for example `user_a`), and *shared accounts must be avoided*.
 - Usernames should use lowercase letters, numbers, underscores, or hyphens (for example `user-a`, `user_a`) and start with a letter or underscore, consistent with script validation rules.
 - For shared read access, create group `shared_ro` and add users who need dataset access. Shared directories can use group `shared_ro` with mode `3775` (setgid + sticky + group-writable, default in `init-host.sh`), `2775` (setgid only), or `0750`, depending on whether sticky and group collaboration write access are needed.
 
-
-=== Home and Data Directories
+### Home and Data Directories
 
 - Recommended permission for `/home/{username}` is `700` (`drwx------`) to prevent traversal or listing by other users.
 - Large data should be placed on a separate disk path such as `/data/{username}`, owned by `chown {username}:{username}` with mode `700`; day-to-day work can remain in home `~`.
 - Recommended default `umask` is `027` or `077` (details in "Octal, special bits, and umask" below). It can be configured in `/etc/profile` or in user shell startup files.
 
-== Login and Access Examples
+## Login and Access Examples
 
 Users connect directly to the host with system accounts (single port 22). The table matches the `Host` config example below.
 
-#table(
-  columns: (auto, auto, auto),
-  align: center,
-  table.header([*User*], [*Example UID*], [*SSH*]),
-  [user_a], [1001], [`ssh user_a@host`],
-  [user_b], [1002], [`ssh user_b@host`],
-  [user_c], [1003], [`ssh user_c@host`],
-  [...], [...], [...],
-)
+| User   | Example UID | SSH               |
+| ------ | ----------- | ----------------- |
+| user_a | 1001        | `ssh user_a@host` |
+| user_b | 1002        | `ssh user_b@host` |
+| user_c | 1003        | `ssh user_c@host` |
+| ...    | ...         | ...               |
 
 ```bash
 # Configure in ~/.ssh/config (user A example)
@@ -120,7 +82,7 @@ ssh my_server
 
 After login, the user gets a standard Linux shell session with working directory `~`, similar to a typical lab workstation.
 
-= Permission Primer
+# Permission Primer
 
 Linux files and directories use *Discretionary Access Control (DAC)*: each object has an *owner* and *group*, and permissions are evaluated for *owner / group / others*. Each class may have read `r`, write `w`, and execute `x`. For files, `r`/`w` control content read/write and `x` controls executability. For directories, `r` allows listing entries, `w` allows creating/removing names, and `x` allows path traversal.
 
@@ -128,7 +90,7 @@ Linux files and directories use *Discretionary Access Control (DAC)*: each objec
 - *Numeric notation*: octal modes are commonly used; `700` means `rwx------`, and `755` means `rwxr-xr-x`, matching private and shared directory recommendations in this document.
 - *Common commands*: use `chown` to change owner/group and `chmod` to change modes. Default modes for newly created objects are affected by `umask` and special-bit rules, described in "Octal, special bits, and umask" below. Collaboration-related shared modes such as `3775` and `2775` are discussed in "Users and Groups".
 
-== Symbolic Mode (`ls -l` first column, 10 characters)
+## Symbolic Mode (`ls -l` first column, 10 characters)
 
 The mode string from `ls -l` maps left-to-right as follows (consistent with tools like `stat`):
 
@@ -137,7 +99,7 @@ The mode string from `ls -l` maps left-to-right as follows (consistent with tool
 - *Directory `x`*: for directories, without execute permission you usually cannot `cd` into that directory (or resolve paths through it), which is different from having `r` to list entries.
 - *Special execute markers*: besides `x` and `-`, execute positions can show `s`/`S` (setuid in user section, setgid in group section) or `t`/`T` (sticky in other section, commonly on directories). See the next section for octal mapping and meaning.
 
-== Octal, Special Bits, and umask
+## Octal, Special Bits, and umask
 
 *Three-digit octal `chmod XYZ`*: from left to right these are *user / group / other*. Each digit is 0-7, formed by `r=4`, `w=2`, `x=1` (missing bits add 0). For example, `7`=`4+2+1` gives `rwx`, and `5`=`4+1` gives `r-x`.
 

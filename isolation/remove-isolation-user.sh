@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# @help-begin
 # Remove a user provisioned by isolation/add-isolation-user.sh.
 # Does not remove shared layout (SHARED_DATA_PATH, /data/shared_software) or other users' data.
 #
@@ -13,15 +14,16 @@
 #   --ignore-missing     exit 0 if the account is already gone; may still remove user_data dir
 #   -h, --help           show help
 #
-# Env: isolation.env (DATA_ROOT, USER_DATA_PREFIX, USER_DATA_SUFFIX, DRY_RUN)
+# Env: common/config.env (DATA_ROOT, USER_DATA_PREFIX, USER_DATA_SUFFIX, DRY_RUN)
+# @help-end
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=isolation-common.sh
-source "${SCRIPT_DIR}/isolation-common.sh"
+# shellcheck source=../common/utils.sh
+source "${SCRIPT_DIR}/../common/utils.sh"
 
 usage() {
-  sed -n '1,18p' "$0" | tail -n +2
+  awk '/^# @help-begin$/{f=1; next} /^# @help-end$/{f=0} f' "$0"
   exit 0
 }
 

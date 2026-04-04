@@ -2,12 +2,12 @@
 # One-time host layout: DATA_ROOT, shared_ro group, SHARED_DATA_PATH per doc/main.typ
 #
 # Usage: sudo ./init-host.sh
-# Env:   see isolation.env (override DATA_ROOT, SHARED_DATA_DIR_NAME, SHARED_DATA_PATH, SHARED_DATA_MODE, DRY_RUN, etc.)
+# Env:   see common/config.env (override DATA_ROOT, SHARED_DATA_DIR_NAME, SHARED_DATA_PATH, SHARED_DATA_MODE, DRY_RUN, etc.)
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=isolation-common.sh
-source "${SCRIPT_DIR}/isolation-common.sh"
+# shellcheck source=../common/utils.sh
+source "${SCRIPT_DIR}/../common/utils.sh"
 
 require_root
 

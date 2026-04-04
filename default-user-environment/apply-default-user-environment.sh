@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Apply doc/default.typ to an existing user: software group, ~/shared_software symlink, ~/USER_DATA_ROOT_LINK_NAME -> DATA_ROOT,
+# @help-begin
+# Apply doc/en/default.md to an existing user: software group, ~/shared_software symlink, ~/USER_DATA_ROOT_LINK_NAME -> DATA_ROOT,
 # shell templates, optional Miniconda. Appends umask hint to ~/.bashrc, ~/.zshrc, ~/.config/fish/config.fish when present.
 #
 # Usage:
@@ -11,16 +12,19 @@
 #   --force-templates         overwrite destination files from templates
 #   --skip-existing-templates keep existing files unchanged (no append)
 #                             default behavior is append template content once
-#   --install-miniconda    run TEMPLATE_DIR/install_miniconda.sh as the user (needs network)
+#   --install-miniconda    run install_miniconda.sh from this directory as the user (needs network)
 #   -h, --help             show help
 #
-# Env: see default-user-environment/config.env and isolation/isolation.env (USER_DATA_ROOT_LINK_NAME, ENABLE_DATA_ROOT_LINK, …)
+# Env: see common/config.env (USER_DATA_ROOT_LINK_NAME, ENABLE_DATA_ROOT_LINK, …)
 #      DATA_ROOT must match the data root used for this user (add-user.sh passes it; standalone: sudo DATA_ROOT=... ./apply-...)
+# @help-end
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# shellcheck source=common.sh
-source "${SCRIPT_DIR}/common.sh"
+# shellcheck source=../common/config.env
+source "${SCRIPT_DIR}/../common/config.env"
+# shellcheck source=../common/utils.sh
+source "${SCRIPT_DIR}/../common/utils.sh"
 
 JOIN_SOFTWARE=1
 SKIP_TEMPLATES=0
@@ -29,7 +33,7 @@ SKIP_EXISTING_TEMPLATES=0
 INSTALL_MINICONDA=0
 
 usage() {
-  sed -n '1,17p' "$0" | tail -n +2
+  awk '/^# @help-begin$/{f=1; next} /^# @help-end$/{f=0} f' "$0"
   exit 0
 }
 
@@ -159,7 +163,7 @@ if [[ "$SKIP_TEMPLATES" -eq 0 ]] && [[ -d "${TEMPLATE_DIR}" ]]; then
       return 0
     fi
     {
-      echo
+      echo ""
       echo "${begin_mark}"
       cat "$src"
       echo "${end_mark}"
@@ -181,30 +185,12 @@ else
 fi
 
 # Umask hint: append once per file if marker missing (bash, zsh, fish when file exists).
-append_umask_if_needed() {
-  local rc="$1"
-  if [[ "${DRY_RUN}" == 1 ]]; then
-    echo "[dry-run] append umask ${USER_UMASK_HINT} to ${rc} if missing marker"
-    return 0
-  fi
-  [[ -f "$rc" ]] || return 0
-  if grep -qF "${ISOLATION_BASHRC_MARK}" "$rc" 2>/dev/null; then
-    return 0
-  fi
-  cat >>"$rc" <<EOF
-
-${ISOLATION_BASHRC_MARK}
-umask ${USER_UMASK_HINT}
-EOF
-  chown "${USERNAME}:${USERNAME}" "$rc"
-}
-
-append_umask_if_needed "${HOME_DIR}/.bashrc"
-append_umask_if_needed "${HOME_DIR}/.zshrc"
-append_umask_if_needed "${HOME_DIR}/.config/fish/config.fish"
+append_isolation_umask_rc "${USERNAME}" "${HOME_DIR}/.bashrc" 0
+append_isolation_umask_rc "${USERNAME}" "${HOME_DIR}/.zshrc" 0
+append_isolation_umask_rc "${USERNAME}" "${HOME_DIR}/.config/fish/config.fish" 0
 
 if [[ "$INSTALL_MINICONDA" -eq 1 ]]; then
-  MC="${TEMPLATE_DIR}/install_miniconda.sh"
+  MC="${SCRIPT_DIR}/install_miniconda.sh"
   if [[ ! -f "$MC" ]]; then
     die "install_miniconda.sh not found: $MC"
   fi
