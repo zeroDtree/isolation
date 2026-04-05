@@ -26,13 +26,3 @@ sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin d
 # start docker
 sudo systemctl status docker
 sudo systemctl start docker
-
-# exit 0
-
-# rootless docker
-sudo apt install -y uidmap
-sudo systemctl disable --now docker.service docker.socket
-sudo rm /var/run/docker.sock
-# sudo apt  -y install -y docker-ce-rootless-extras
-dockerd-rootless-setuptool.sh install
-docker info
