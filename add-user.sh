@@ -22,7 +22,7 @@
 #   --force-templates        pass through: overwrite existing rc files from templates
 #   --skip-existing-templates pass through: keep existing files unchanged (no append)
 #   --install-miniconda      pass through: run default-user-environment/install_miniconda.sh as user
-#   --install-rootless-docker run docker/ubuntu/install-rootless-docker-for-user.sh after user exists
+#   --install-rootless-docker prepare rootless Docker (checks, linger, shell env); user completes install per docs
 #   -h, --help               show help
 #
 # Examples:
@@ -168,7 +168,7 @@ fi
 
 if [[ "${INSTALL_ROOTLESS_DOCKER}" -eq 1 ]]; then
   _S=$((_S + 1))
-  echo "[step ${_S}/${_TOTAL}] install rootless docker for ${USERNAME}"
+  echo "[step ${_S}/${_TOTAL}] prepare rootless docker for ${USERNAME}"
   "${INSTALL_ROOTLESS_DOCKER_SCRIPT}" "${USERNAME}"
 fi
 
