@@ -81,3 +81,77 @@ umask ${USER_UMASK_HINT}
 EOF
   run chown "${username}:${username}" "$rc"
 }
+
+# Append Docker rootless env exports once (for hosts without systemd --user / pam_systemd).
+# Usage: append_rootless_docker_env_rc USERNAME RC_PATH [CREATE]
+#   CREATE=0: only append if RC_PATH exists
+#   CREATE=1: ensure file exists (mkdir -p, touch) then append if marker missing
+append_rootless_docker_env_rc() {
+  local username="${1:?}"
+  local rc="${2:?}"
+  local create="${3:-0}"
+
+  if [[ "${DRY_RUN}" == 1 ]]; then
+    echo "[dry-run] append rootless docker env to ${rc} if missing marker"
+    return 0
+  fi
+
+  if [[ "$create" == 1 ]]; then
+    run mkdir -p "$(dirname "$rc")"
+    run touch "$rc"
+  else
+    [[ -f "$rc" ]] || return 0
+  fi
+
+  if grep -qF "${ISOLATION_ROOTLESS_DOCKER_MARK}" "$rc" 2>/dev/null; then
+    return 0
+  fi
+
+  {
+    echo ""
+    echo "${ISOLATION_ROOTLESS_DOCKER_MARK}"
+    cat <<'EOF'
+# Required when systemd --user / XDG_RUNTIME_DIR is not set (see dockerd-rootless-setuptool.sh).
+export XDG_RUNTIME_DIR="${HOME}/.docker/run"
+export PATH="/usr/bin:${PATH}"
+export DOCKER_HOST="unix://${XDG_RUNTIME_DIR}/docker.sock"
+EOF
+  } >>"$rc"
+  run chown "${username}:${username}" "$rc"
+}
+
+# Same as append_rootless_docker_env_rc but for fish (~/.config/fish/config.fish).
+# Usage: append_rootless_docker_env_fish USERNAME RC_PATH [CREATE]
+append_rootless_docker_env_fish() {
+  local username="${1:?}"
+  local rc="${2:?}"
+  local create="${3:-0}"
+
+  if [[ "${DRY_RUN}" == 1 ]]; then
+    echo "[dry-run] append rootless docker env (fish) to ${rc} if missing marker"
+    return 0
+  fi
+
+  if [[ "$create" == 1 ]]; then
+    run mkdir -p "$(dirname "$rc")"
+    run touch "$rc"
+  else
+    [[ -f "$rc" ]] || return 0
+  fi
+
+  if grep -qF "${ISOLATION_ROOTLESS_DOCKER_MARK}" "$rc" 2>/dev/null; then
+    return 0
+  fi
+
+  {
+    echo ""
+    echo "${ISOLATION_ROOTLESS_DOCKER_MARK}"
+    cat <<'EOF'
+# Required when systemd --user / XDG_RUNTIME_DIR is not set (see dockerd-rootless-setuptool.sh).
+set -gx XDG_RUNTIME_DIR $HOME/.docker/run
+set -gx PATH /usr/bin $PATH
+set -gx DOCKER_HOST unix://$XDG_RUNTIME_DIR/docker.sock
+EOF
+  } >>"$rc"
+  run chown "${username}:${username}" "$rc"
+}
