@@ -112,9 +112,15 @@ append_rootless_docker_env_rc() {
     echo "${ISOLATION_ROOTLESS_DOCKER_MARK}"
     cat <<'EOF'
 # Required when systemd --user / XDG_RUNTIME_DIR is not set (see dockerd-rootless-setuptool.sh).
-export XDG_RUNTIME_DIR="${HOME}/.docker/run"
-export PATH="/usr/bin:${PATH}"
-export DOCKER_HOST="unix://${XDG_RUNTIME_DIR}/docker.sock"
+
+# get the runtime directory of the current user (e.g. /run/user/1005)
+export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+
+# let the Docker client point to the correct Socket location
+export DOCKER_HOST="unix://$XDG_RUNTIME_DIR/docker.sock"
+
+# ensure the path is correct
+export PATH="/usr/bin:$PATH"
 EOF
   } >>"$rc"
   run chown "${username}:${username}" "$rc"
@@ -148,7 +154,7 @@ append_rootless_docker_env_fish() {
     echo "${ISOLATION_ROOTLESS_DOCKER_MARK}"
     cat <<'EOF'
 # Required when systemd --user / XDG_RUNTIME_DIR is not set (see dockerd-rootless-setuptool.sh).
-set -gx XDG_RUNTIME_DIR $HOME/.docker/run
+set -gx XDG_RUNTIME_DIR "/run/user/$(id -u)"
 set -gx PATH /usr/bin $PATH
 set -gx DOCKER_HOST unix://$XDG_RUNTIME_DIR/docker.sock
 EOF
