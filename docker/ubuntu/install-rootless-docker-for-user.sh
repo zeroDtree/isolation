@@ -77,4 +77,3 @@ append_rootless_docker_env_rc "$USERNAME" "${USER_HOME}/.zshrc" 0
 append_rootless_docker_env_fish "$USERNAME" "${USER_HOME}/.config/fish/config.fish" 1
 
 echo "ok: rootless docker preparation done for user=${USERNAME}"
-echo "    complete rootless Docker install per project documentation (e.g. dockerd-rootless-setuptool.sh install as that user)"

@@ -1,6 +1,6 @@
 # Isolation
 
-Shell tooling to provision **isolated Linux accounts** with a predictable **data layout** (shared datasets + per-user private trees), optional **collaborative shared software** (`~/shared_software`), and a **default shell environment** (symlinks, templates, optional Miniconda). The design is described in the Markdown docs under `doc/en/`.
+Shell tooling to provision **isolated Linux accounts** with a predictable **data layout** (shared datasets + per-user private trees), optional **collaborative shared software** (`~/shared_software`), a **default shell environment** (symlinks, templates, optional Miniconda), and optional **rootless Docker preparation** for a new user. The design is described in the Markdown docs under `doc/en/`.
 
 ## 1. Configuration
 
@@ -20,16 +20,19 @@ sudo ./add-user.sh USERNAME DATA_DIR [options]
 
 `DATA_DIR` must be an **absolute** path (for that invocation it is `DATA_ROOT`, e.g. `/data`).
 
-**Example**
+**Examples**
 
-- 
-  ```bash
-  sudo ./add-user.sh alice /data --password 'your-password'
-  ```
-- 
-  ```bash
-  sudo ./add-user.sh alice /data --password 'your-password' --install-miniconda
-  ```
+```bash
+sudo ./add-user.sh alice /data --password 'your-password'
+```
+
+```bash
+sudo ./add-user.sh alice /data --password 'your-password' --install-miniconda
+```
+
+```bash
+sudo ./add-user.sh frank /data --install-rootless-docker
+```
 
 **What it does (typical run)**
 
@@ -40,7 +43,12 @@ sudo ./add-user.sh USERNAME DATA_DIR [options]
    - **`~/data`** → `DATA_ROOT` when `ENABLE_DATA_ROOT_LINK=1`, so shared and per-user `*_data` dirs are reachable from home.
    - **Templates** from `template/`: [`bashrc.sh`](template/bashrc.sh), [`zshrc.sh`](template/zshrc.sh), [`config.fish`](template/config.fish), [`vimrc`](template/vimrc) (behavior controlled by `--skip-templates`, `--force-templates`, etc.).
 
-Optional: `--install-miniconda` runs [`default-user-environment/install_miniconda.sh`](default-user-environment/install_miniconda.sh) as the new user.
+4. **Rootless Docker prep** (only with `--install-rootless-docker`) — [`docker/ubuntu/install-rootless-docker-for-user.sh`](docker/ubuntu/install-rootless-docker-for-user.sh); runs after user creation.
+
+Optional flags:
+
+- **`--install-miniconda`** — runs [`default-user-environment/install_miniconda.sh`](default-user-environment/install_miniconda.sh) as the new user.
+- **`--install-rootless-docker`** — runs [`docker/ubuntu/install-rootless-docker-for-user.sh`](docker/ubuntu/install-rootless-docker-for-user.sh) after the user exists (subuid/subgid checks, `loginctl enable-linger`, shell env snippets). The user still installs rootless Docker after login; see [`doc/en/docker.md`](doc/en/docker.md).
 
 Run `sudo ./add-user.sh --help` for the full option list.
 
@@ -99,3 +107,6 @@ Pass a different image as the first argument if it is not an option flag, for ex
 
 - [`doc/en/add-user.md`](doc/en/add-user.md) — account and directory isolation
 - [`doc/en/default.md`](doc/en/default.md) — collaborative software directory, `~/data` → `DATA_ROOT`, templates, optional Miniconda
+- [`doc/en/docker.md`](doc/en/docker.md) — rootless Docker preparation and post-login install
+
+Host install helpers for Docker on Ubuntu live under [`docker/ubuntu/`](docker/ubuntu/) (apt repo, optional root daemon disable, per-user prep script).
