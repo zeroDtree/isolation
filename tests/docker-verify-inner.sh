@@ -21,19 +21,6 @@ want_miniconda() {
 fail() { echo "FAIL: $*" >&2; exit 1; }
 ok() { echo "OK   $*"; }
 
-# Minimal containers often have runuser but not sudo.
-as_user() {
-  local u="$1"
-  shift
-  if command -v runuser >/dev/null 2>&1; then
-    runuser -u "$u" -- "$@"
-  elif command -v sudo >/dev/null 2>&1; then
-    sudo -u "$u" -- "$@"
-  else
-    fail "need runuser or sudo to run commands as another user"
-  fi
-}
-
 expect_fail() {
   local desc="$1"
   shift
@@ -48,6 +35,8 @@ chmod +x add-user.sh remove-user.sh fix-migrated-shared-software.sh isolation/*.
 
 # shellcheck source=common/config.env
 source /work/common/config.env
+# shellcheck source=common/utils.sh
+source /work/common/utils.sh
 
 for u in "${USER_A}" "${USER_B}" "${USER_C}" "${USER_PW}"; do
   id "${u}" &>/dev/null && userdel -r "${u}" 2>/dev/null || true

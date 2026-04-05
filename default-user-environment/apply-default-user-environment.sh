@@ -43,19 +43,6 @@ require_root
 USERNAME="${1:?}"
 shift || true
 
-# Minimal containers often have runuser but not sudo.
-as_user() {
-  local u="$1"
-  shift
-  if command -v runuser >/dev/null 2>&1; then
-    run runuser -u "$u" -- "$@"
-  elif command -v sudo >/dev/null 2>&1; then
-    run sudo -u "$u" -- "$@"
-  else
-    die "need runuser or sudo to run commands as another user"
-  fi
-}
-
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --no-join-software)

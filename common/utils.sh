@@ -36,6 +36,19 @@ run() {
   fi
 }
 
+# Run a command as USER (runuser if present, else sudo -u). Honors DRY_RUN via run().
+as_user() {
+  local u="${1:?}"
+  shift
+  if command -v runuser >/dev/null 2>&1; then
+    run runuser -u "$u" -- "$@"
+  elif command -v sudo >/dev/null 2>&1; then
+    run sudo -u "$u" -- "$@"
+  else
+    die "need runuser or sudo to run commands as another user"
+  fi
+}
+
 # Append umask hint (after ISOLATION_BASHRC_MARK) if the marker is not already in the file.
 # Usage: append_isolation_umask_rc USERNAME RC_PATH [CREATE]
 #   CREATE=0 (default): only touch existing files; skip if RC_PATH is missing.

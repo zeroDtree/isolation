@@ -22,6 +22,7 @@
 #   --force-templates        pass through: overwrite existing rc files from templates
 #   --skip-existing-templates pass through: keep existing files unchanged (no append)
 #   --install-miniconda      pass through: run default-user-environment/install_miniconda.sh as user
+#   --install-rootless-docker run docker/ubuntu/install-rootless-docker-for-user.sh after user exists
 #   -h, --help               show help
 #
 # Examples:
@@ -31,6 +32,7 @@
 #   sudo ./add-user.sh carol /data --uid 2301 --shell /bin/zsh
 #   sudo ./add-user.sh dave /data --no-default-user-env
 #   sudo ./add-user.sh eve /data --install-miniconda
+#   sudo ./add-user.sh frank /data --install-rootless-docker
 # @help-end
 
 set -euo pipefail
@@ -40,6 +42,7 @@ INIT_SCRIPT="${SCRIPT_DIR}/isolation/init-host.sh"
 ADD_USER_SCRIPT="${SCRIPT_DIR}/isolation/add-isolation-user.sh"
 INIT_SHARED_SOFTWARE="${SCRIPT_DIR}/default-user-environment/init-shared-software-layout.sh"
 APPLY_DEFAULT_ENV="${SCRIPT_DIR}/default-user-environment/apply-default-user-environment.sh"
+INSTALL_ROOTLESS_DOCKER_SCRIPT="${SCRIPT_DIR}/docker/ubuntu/install-rootless-docker-for-user.sh"
 
 usage() {
   awk '/^# @help-begin$/{f=1; next} /^# @help-end$/{f=0} f' "$0"
@@ -58,6 +61,7 @@ EXPLICIT_UID=""
 LOGIN_PASSWORD=""
 SHELL_PATH=""
 DEFAULT_USER_ENV=1
+INSTALL_ROOTLESS_DOCKER=0
 APPLY_ARGS=()
 
 while [[ $# -gt 0 ]]; do
@@ -94,6 +98,10 @@ while [[ $# -gt 0 ]]; do
       DEFAULT_USER_ENV=1
       shift
       ;;
+    --install-rootless-docker)
+      INSTALL_ROOTLESS_DOCKER=1
+      shift
+      ;;
     --no-join-software|--skip-templates|--force-templates|--skip-existing-templates|--install-miniconda)
       APPLY_ARGS+=("$1")
       shift
@@ -119,6 +127,9 @@ if [[ "${DEFAULT_USER_ENV}" -eq 1 ]]; then
   [[ -x "${INIT_SHARED_SOFTWARE}" ]] || { echo "error: missing ${INIT_SHARED_SOFTWARE}" >&2; exit 1; }
   [[ -x "${APPLY_DEFAULT_ENV}" ]] || { echo "error: missing ${APPLY_DEFAULT_ENV}" >&2; exit 1; }
 fi
+if [[ "${INSTALL_ROOTLESS_DOCKER}" -eq 1 ]]; then
+  [[ -x "${INSTALL_ROOTLESS_DOCKER_SCRIPT}" ]] || { echo "error: missing ${INSTALL_ROOTLESS_DOCKER_SCRIPT}" >&2; exit 1; }
+fi
 
 ADD_ARGS=("${USERNAME}")
 [[ "${JOIN_SHARED_RO}" -eq 1 ]] && ADD_ARGS+=("--join-shared-ro")
@@ -130,26 +141,35 @@ if [[ "${DRY_RUN_FLAG}" -eq 1 ]]; then
   export DRY_RUN=1
 fi
 
-if [[ "${DEFAULT_USER_ENV}" -eq 1 ]]; then
-  _TOTAL=4
-else
-  _TOTAL=2
-fi
+_TOTAL=2
+[[ "${DEFAULT_USER_ENV}" -eq 1 ]] && _TOTAL=$((_TOTAL + 2))
+[[ "${INSTALL_ROOTLESS_DOCKER}" -eq 1 ]] && _TOTAL=$((_TOTAL + 1))
 
-echo "[step 1/${_TOTAL}] init host layout at DATA_ROOT=${DATA_DIR}"
+_S=0
+_S=$((_S + 1))
+echo "[step ${_S}/${_TOTAL}] init host layout at DATA_ROOT=${DATA_DIR}"
 DATA_ROOT="${DATA_DIR}" "${INIT_SCRIPT}"
 
-echo "[step 2/${_TOTAL}] create isolated user ${USERNAME}"
+_S=$((_S + 1))
+echo "[step ${_S}/${_TOTAL}] create isolated user ${USERNAME}"
 DATA_ROOT="${DATA_DIR}" "${ADD_USER_SCRIPT}" "${ADD_ARGS[@]}"
 
 if [[ "${DEFAULT_USER_ENV}" -eq 1 ]]; then
-  echo "[step 3/${_TOTAL}] init shared software layout (doc/en/default.md)"
+  _S=$((_S + 1))
+  echo "[step ${_S}/${_TOTAL}] init shared software layout (doc/en/default.md)"
   "${INIT_SHARED_SOFTWARE}"
 
-  echo "[step 4/${_TOTAL}] apply default user environment for ${USERNAME}"
+  _S=$((_S + 1))
+  echo "[step ${_S}/${_TOTAL}] apply default user environment for ${USERNAME}"
   DATA_ROOT="${DATA_DIR}" "${APPLY_DEFAULT_ENV}" "${USERNAME}" "${APPLY_ARGS[@]}"
 else
   echo "[skip] default user environment (--no-default-user-env)"
+fi
+
+if [[ "${INSTALL_ROOTLESS_DOCKER}" -eq 1 ]]; then
+  _S=$((_S + 1))
+  echo "[step ${_S}/${_TOTAL}] install rootless docker for ${USERNAME}"
+  "${INSTALL_ROOTLESS_DOCKER_SCRIPT}" "${USERNAME}"
 fi
 
 echo "ok: setup complete for user=${USERNAME}, data_root=${DATA_DIR}"
