@@ -6,7 +6,10 @@
 #   3) Init shared software tree (doc/en/default.md) and apply templates / ~/shared_software / ~/data -> DATA_ROOT
 #
 # Usage:
-#   sudo ./add-user.sh USERNAME DATA_DIR [options]
+#   sudo ./add-user.sh USERNAME [options]
+#
+# Env: DATA_ROOT — data root (default from common/config.env, often /data). Must be absolute; override per run, e.g.:
+#   sudo DATA_ROOT=/mnt/research-data ./add-user.sh alice
 #
 # Options:
 #   --join-shared-ro         add user into shared_ro group (default behavior)
@@ -26,18 +29,21 @@
 #   -h, --help               show help
 #
 # Examples:
-#   sudo ./add-user.sh alice /data
-#   sudo ./add-user.sh alice /data --password 'S3cret!'
-#   sudo ./add-user.sh bob /mnt/research-data --no-join-shared-ro
-#   sudo ./add-user.sh carol /data --uid 2301 --shell /bin/zsh
-#   sudo ./add-user.sh dave /data --no-default-user-env
-#   sudo ./add-user.sh eve /data --install-miniconda
-#   sudo ./add-user.sh frank /data --install-rootless-docker
+#   sudo ./add-user.sh alice
+#   sudo ./add-user.sh alice --password 'S3cret!'
+#   sudo DATA_ROOT=/mnt/research-data ./add-user.sh bob --no-join-shared-ro
+#   sudo ./add-user.sh carol --uid 2301 --shell /bin/zsh
+#   sudo ./add-user.sh dave --no-default-user-env
+#   sudo ./add-user.sh eve --install-miniconda
+#   sudo ./add-user.sh frank --install-rootless-docker
 # @help-end
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=common/config.env
+source "${SCRIPT_DIR}/common/config.env"
+
 INIT_SCRIPT="${SCRIPT_DIR}/isolation/init-host.sh"
 ADD_USER_SCRIPT="${SCRIPT_DIR}/isolation/add-isolation-user.sh"
 INIT_SHARED_SOFTWARE="${SCRIPT_DIR}/default-user-environment/init-shared-software-layout.sh"
@@ -49,11 +55,15 @@ usage() {
   exit 0
 }
 
-[[ $# -ge 2 ]] || usage
+[[ $# -ge 1 ]] || usage
+case "${1:-}" in
+  -h|--help)
+    usage
+    ;;
+esac
 
 USERNAME="$1"
-DATA_DIR="$2"
-shift 2 || true
+shift
 
 JOIN_SHARED_RO=1
 DRY_RUN_FLAG=0
@@ -116,8 +126,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ "${DATA_DIR}" != /* ]]; then
-  echo "error: DATA_DIR must be an absolute path (got: ${DATA_DIR})" >&2
+if [[ "${DATA_ROOT}" != /* ]]; then
+  echo "error: DATA_ROOT must be an absolute path (got: ${DATA_ROOT}); set DATA_ROOT or edit common/config.env" >&2
   exit 1
 fi
 
@@ -147,21 +157,21 @@ _TOTAL=2
 
 _S=0
 _S=$((_S + 1))
-echo "[step ${_S}/${_TOTAL}] init host layout at DATA_ROOT=${DATA_DIR}"
-DATA_ROOT="${DATA_DIR}" "${INIT_SCRIPT}"
+echo "[step ${_S}/${_TOTAL}] init host layout at DATA_ROOT=${DATA_ROOT}"
+DATA_ROOT="${DATA_ROOT}" "${INIT_SCRIPT}"
 
 _S=$((_S + 1))
 echo "[step ${_S}/${_TOTAL}] create isolated user ${USERNAME}"
-DATA_ROOT="${DATA_DIR}" "${ADD_USER_SCRIPT}" "${ADD_ARGS[@]}"
+DATA_ROOT="${DATA_ROOT}" "${ADD_USER_SCRIPT}" "${ADD_ARGS[@]}"
 
 if [[ "${DEFAULT_USER_ENV}" -eq 1 ]]; then
   _S=$((_S + 1))
   echo "[step ${_S}/${_TOTAL}] init shared software layout (doc/en/default.md)"
-  DATA_ROOT="${DATA_DIR}" "${INIT_SHARED_SOFTWARE}"
+  DATA_ROOT="${DATA_ROOT}" "${INIT_SHARED_SOFTWARE}"
 
   _S=$((_S + 1))
   echo "[step ${_S}/${_TOTAL}] apply default user environment for ${USERNAME}"
-  DATA_ROOT="${DATA_DIR}" "${APPLY_DEFAULT_ENV}" "${USERNAME}" "${APPLY_ARGS[@]}"
+  DATA_ROOT="${DATA_ROOT}" "${APPLY_DEFAULT_ENV}" "${USERNAME}" "${APPLY_ARGS[@]}"
 else
   echo "[skip] default user environment (--no-default-user-env)"
 fi
@@ -172,4 +182,4 @@ if [[ "${INSTALL_ROOTLESS_DOCKER}" -eq 1 ]]; then
   "${INSTALL_ROOTLESS_DOCKER_SCRIPT}" "${USERNAME}"
 fi
 
-echo "ok: setup complete for user=${USERNAME}, data_root=${DATA_DIR}"
+echo "ok: setup complete for user=${USERNAME}, data_root=${DATA_ROOT}"

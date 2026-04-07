@@ -45,15 +45,15 @@ done
 echo "=== provision ${USER_A} and ${USER_B} (full add-user.sh) ==="
 if want_miniconda; then
   echo "    (INSTALL_MINICONDA: install miniconda for ${USER_A})"
-  ./add-user.sh "${USER_A}" /data --install-miniconda
+  ./add-user.sh "${USER_A}" --install-miniconda
 else
   echo "    (INSTALL_MINICONDA=0: skip --install-miniconda for ${USER_A})"
-  ./add-user.sh "${USER_A}" /data
+  ./add-user.sh "${USER_A}"
 fi
-./add-user.sh "${USER_B}" /data --skip-templates
+./add-user.sh "${USER_B}" --skip-templates
 
 echo "=== add user with explicit password ==="
-./add-user.sh "${USER_PW}" /data --password "${USER_PW_PASS}" --no-default-user-env
+./add-user.sh "${USER_PW}" --password "${USER_PW_PASS}" --no-default-user-env
 pw_hash="$(getent shadow "${USER_PW}" | cut -d: -f2)"
 [[ -n "${pw_hash}" ]] || fail "${USER_PW} has empty password hash field"
 [[ "${pw_hash}" != "!" && "${pw_hash}" != "*" && "${pw_hash}" != "!!" && "${pw_hash}" != "!*" ]] || \
@@ -234,11 +234,11 @@ expect_fail "force overwrite removes previous custom sentinel in .bashrc" \
 ok "--force-templates overwrites existing .bashrc content"
 
 echo "=== remove-user.sh ==="
-expect_fail "remove-user rejects relative DATA_DIR" \
-  ./remove-user.sh "${USER_A}" relative/path 2>/dev/null
-./remove-user.sh nosuchuser_zz /data --ignore-missing
+expect_fail "remove-user rejects relative DATA_ROOT" \
+  env DATA_ROOT=relative/path ./remove-user.sh "${USER_A}" 2>/dev/null
+./remove-user.sh nosuchuser_zz --ignore-missing
 ok "remove-user --ignore-missing when account absent"
-./remove-user.sh nosuchuser_zz /data --dry-run --ignore-missing
+./remove-user.sh nosuchuser_zz --dry-run --ignore-missing
 ok "remove-user dry-run with --ignore-missing"
 
 echo "=== cleanup ==="

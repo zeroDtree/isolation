@@ -1,23 +1,27 @@
 #!/usr/bin/env bash
 # @help-begin
-# Remove a user created by add-user.sh: deletes the account (and by default home + /data/<user>_data).
-# Does not undo host init (shared data dir under DATA_ROOT, /data/shared_software) or shared trees.
+# Remove a user created by add-user.sh: deletes the account (and by default home + DATA_ROOT/<user>_data).
+# Does not undo host init (shared data dir under DATA_ROOT, shared software tree) or shared trees.
 #
 # Usage:
-#   sudo ./remove-user.sh USERNAME DATA_DIR [options]
+#   sudo ./remove-user.sh USERNAME [options]
+#
+# Env: DATA_ROOT — must match the root used when the user was added (default from common/config.env).
 #
 # Options are passed to isolation/remove-isolation-user.sh:
 #   --dry-run, --keep-home, --keep-user-data, --force, --ignore-missing, -h, --help
 #
 # Examples:
-#   sudo ./remove-user.sh alice /data
-#   sudo ./remove-user.sh bob /data --dry-run
-#   sudo ./remove-user.sh carol /mnt/research-data --keep-user-data
+#   sudo ./remove-user.sh alice
+#   sudo ./remove-user.sh bob --dry-run
+#   sudo DATA_ROOT=/mnt/research-data ./remove-user.sh carol --keep-user-data
 # @help-end
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=common/config.env
+source "${SCRIPT_DIR}/common/config.env"
 REMOVE_SCRIPT="${SCRIPT_DIR}/isolation/remove-isolation-user.sh"
 
 usage() {
@@ -25,14 +29,18 @@ usage() {
   exit 0
 }
 
-[[ $# -ge 2 ]] || usage
+[[ $# -ge 1 ]] || usage
+case "${1:-}" in
+  -h|--help)
+    usage
+    ;;
+esac
 
 USERNAME="$1"
-DATA_DIR="$2"
-shift 2 || true
+shift
 
-if [[ "${DATA_DIR}" != /* ]]; then
-  echo "error: DATA_DIR must be an absolute path (got: ${DATA_DIR})" >&2
+if [[ "${DATA_ROOT}" != /* ]]; then
+  echo "error: DATA_ROOT must be an absolute path (got: ${DATA_ROOT}); set DATA_ROOT or edit common/config.env" >&2
   exit 1
 fi
 
@@ -44,4 +52,4 @@ case "${1:-}" in
     ;;
 esac
 
-DATA_ROOT="${DATA_DIR}" "${REMOVE_SCRIPT}" "${USERNAME}" "$@"
+DATA_ROOT="${DATA_ROOT}" "${REMOVE_SCRIPT}" "${USERNAME}" "$@"

@@ -7,7 +7,7 @@ Shell tooling to provision **isolated Linux accounts** with a predictable **data
 Defaults live in [`common/config.env`](common/config.env). Override for a single run with environment variables, for example:
 
 ```bash
-sudo DATA_ROOT=/mnt/storage ./add-user.sh alice /mnt/storage
+sudo DATA_ROOT=/mnt/storage ./add-user.sh alice
 ```
 
 ## 2. Add user
@@ -15,23 +15,23 @@ sudo DATA_ROOT=/mnt/storage ./add-user.sh alice /mnt/storage
 Main entry point: [`add-user.sh`](add-user.sh).
 
 ```bash
-sudo ./add-user.sh USERNAME DATA_DIR [options]
+sudo ./add-user.sh USERNAME [options]
 ```
 
-`DATA_DIR` must be an **absolute** path (for that invocation it is `DATA_ROOT`, e.g. `/data`).
+`DATA_ROOT` comes from [`common/config.env`](common/config.env) (default `/data`) or override per run, e.g. `sudo DATA_ROOT=/mnt/storage ./add-user.sh alice`. It must be an **absolute** path.
 
 **Examples**
 
 ```bash
-sudo ./add-user.sh alice /data --password 'your-password'
+sudo ./add-user.sh alice --password 'your-password'
 ```
 
 ```bash
-sudo ./add-user.sh alice /data --password 'your-password' --install-miniconda
+sudo ./add-user.sh alice --password 'your-password' --install-miniconda
 ```
 
 ```bash
-sudo ./add-user.sh frank /data --install-rootless-docker
+sudo ./add-user.sh frank --install-rootless-docker
 ```
 
 **What it does (typical run)**
@@ -86,10 +86,10 @@ Permissions applied under each path (after `chgrp -R` to `SOFTWARE_GROUP` in all
 [`remove-user.sh`](remove-user.sh) removes an account created by this flow. It does **not** tear down host-wide layout (shared data dir, shared software tree, or other users).
 
 ```bash
-sudo ./remove-user.sh USERNAME DATA_DIR [options]
+sudo ./remove-user.sh USERNAME [options]
 ```
 
-`DATA_DIR` must match the `DATA_ROOT` used when the user was added. Options are passed to [`isolation/remove-isolation-user.sh`](isolation/remove-isolation-user.sh) (`--keep-home`, `--keep-user-data`, `--dry-run`, `--force`, `--ignore-missing`, …). 
+`DATA_ROOT` must match the value used when the user was added (set the same way as for `add-user.sh`). Options are passed to [`isolation/remove-isolation-user.sh`](isolation/remove-isolation-user.sh) (`--keep-home`, `--keep-user-data`, `--dry-run`, `--force`, `--ignore-missing`, …). 
 
 Run `sudo ./remove-user.sh --help` for detailed options.
 

@@ -16,7 +16,7 @@
 #   -h, --help             show help
 #
 # Env: see common/config.env (USER_DATA_ROOT_LINK_NAME, ENABLE_DATA_ROOT_LINK, …)
-#      DATA_ROOT must match the data root used for this user (add-user.sh passes it; standalone: sudo DATA_ROOT=... ./apply-...)
+#      DATA_ROOT must match the data root used for this user (same as add-user.sh / common/config.env; standalone: sudo DATA_ROOT=... ./apply-...)
 # @help-end
 
 set -euo pipefail
