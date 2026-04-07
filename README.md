@@ -7,7 +7,7 @@ Shell tooling to provision **isolated Linux accounts** with a predictable **data
 Defaults live in [`common/config.env`](common/config.env). Override for a single run with environment variables, for example:
 
 ```bash
-sudo DATA_ROOT=/path/to/data_root ./add-user.sh USERNAME
+sudo DATA_ROOT=/path/to/data_root bash add-user.sh USERNAME
 ```
 
 ## 2. Add user
@@ -23,7 +23,7 @@ sudo DATA_ROOT=/path/to/data_root bash add-user.sh USERNAME [options]
 **Examples**
 
 ```bash
-sudo DATA_ROOT=/data bash ./add-user.sh alice --password 'your-password' --install-miniconda --install-rootless-docker
+sudo DATA_ROOT=/data bash add-user.sh alice --password 'your-password' --install-miniconda --install-rootless-docker
 ```
 
 **What it does (typical run)**
@@ -53,7 +53,7 @@ Each argument must **exist** and resolve to a path **under** `SOFTWARE_ROOT` (de
 
 ```bash
 # all immediate children (shell expands *; do not quote the glob)
-sudo DATA_ROOT=/data bash fix-migrated-shared-software.sh /data/shared_software/* --normalize-perms
+sudo DATA_ROOT=/path/to/data_root bash fix-migrated-shared-software.sh /path/to/data_root/shared_software/* --normalize-perms
 ```
 
 Permissions applied under each path (after `chgrp -R` to `SOFTWARE_GROUP` in all cases):
