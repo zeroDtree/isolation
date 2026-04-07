@@ -111,9 +111,8 @@ function start_if_not_running
 end
 
 
-if not set -q CUDA_DIRS
-	set -gx CUDA_DIRS "$HOME/shared_software/cuda" "$HOME/software/cuda"
-end
+# Canonical search roots (ignore any CUDA_DIRS inherited from the parent process).
+set -gx CUDA_DIRS "$HOME/shared_software/cuda" "$HOME/software/cuda"
 # Fish does not treat \t as a tab inside double quotes; use a real TAB (U+0009).
 set -g __cuda_tab (printf '\t')
 

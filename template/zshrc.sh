@@ -117,7 +117,7 @@ start_if_not_running() {
   fi
 }
 
-: "${CUDA_DIRS:=${HOME}/shared_software/cuda:${HOME}/software/cuda}"
+CUDA_DIRS="${HOME}/shared_software/cuda:${HOME}/software/cuda"
 export CUDA_DIRS
 __CUDA_TAB=$'\t'
 
