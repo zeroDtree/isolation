@@ -217,7 +217,7 @@ count_mark="$(grep -cF "${tpl_mark}" "${bashrc_a}" || true)"
 ./default-user-environment/apply-default-user-environment.sh "${USER_A}" >/dev/null
 count_mark="$(grep -cF "${tpl_mark}" "${bashrc_a}" || true)"
 [[ "${count_mark}" == "1" ]] || fail "re-apply default should keep one template block, got ${count_mark}"
-ok "default template append is one-time and idempotent"
+ok "default template: append once, re-apply replaces block (idempotent marker count)"
 
 # skip-existing mode should preserve existing file content.
 before_sum="$(sha256sum "${bashrc_a}" | awk '{print $1}')"

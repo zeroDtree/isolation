@@ -10,8 +10,8 @@
 #   --no-join-software     do not add user to SOFTWARE_GROUP or create ~/shared_software link
 #   --skip-templates          do not apply files from TEMPLATE_DIR
 #   --force-templates         overwrite destination files from templates
-#   --skip-existing-templates keep existing files unchanged (no append)
-#                             default behavior is append template content once
+#   --skip-existing-templates keep existing files unchanged (no merge/replace)
+#                             default: append if no marker, else replace isolation template block(s)
 #   --install-miniconda    copy template/shell_utils -> ~/shell_utils, run install_miniconda.sh as the user (needs network)
 #   -h, --help             show help
 #
@@ -140,21 +140,53 @@ if [[ "$SKIP_TEMPLATES" -eq 0 ]] && [[ -d "${TEMPLATE_DIR}" ]]; then
       return 0
     fi
 
-    # Default mode: append template content once to existing files.
-    if [[ "${DRY_RUN}" == 1 ]]; then
-      echo "[dry-run] append template block ${src_name} -> ${dst_rel} (if marker missing)"
-      return 0
-    fi
-    if grep -qF "${begin_mark}" "$dst" 2>/dev/null; then
-      echo "[skip] template block exists: ${dst_rel}"
-      return 0
-    fi
+    # Default mode: append template block once, or replace existing marked block(s).
+    local block_tmp
+    block_tmp="$(mktemp)"
     {
       echo ""
       echo "${begin_mark}"
       cat "$src"
       echo "${end_mark}"
-    } >>"$dst"
+    } >"${block_tmp}"
+
+    if [[ "${DRY_RUN}" == 1 ]]; then
+      if grep -qF "${begin_mark}" "$dst" 2>/dev/null; then
+        echo "[dry-run] replace template block ${src_name} -> ${dst_rel}"
+      else
+        echo "[dry-run] append template block ${src_name} -> ${dst_rel}"
+      fi
+      rm -f "${block_tmp}"
+      return 0
+    fi
+
+    if grep -qF "${begin_mark}" "$dst" 2>/dev/null; then
+      local out_tmp
+      out_tmp="$(mktemp)"
+      if ! awk -v begin="${begin_mark}" -v end="${end_mark}" -v newf="${block_tmp}" '
+BEGIN { state=0 }
+state==0 && $0==begin {
+  state=1
+  while ((getline line < newf) > 0) print line
+  close(newf)
+  next
+}
+state==0 { print; next }
+state==1 && $0==end { state=0; next }
+state==1 { next }
+END { if (state==1) exit 1 }
+' "$dst" >"${out_tmp}"; then
+        rm -f "${block_tmp}" "${out_tmp}"
+        die "isolation template ${src_name}: unclosed block in ${dst_rel} (missing ${end_mark})"
+      fi
+      rm -f "${block_tmp}"
+      mv -f "${out_tmp}" "$dst"
+      chown "${USERNAME}:${USERNAME}" "$dst"
+      return 0
+    fi
+
+    cat "${block_tmp}" >>"$dst"
+    rm -f "${block_tmp}"
     chown "${USERNAME}:${USERNAME}" "$dst"
   }
 
