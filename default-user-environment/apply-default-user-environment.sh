@@ -12,7 +12,7 @@
 #   --force-templates         overwrite destination files from templates
 #   --skip-existing-templates keep existing files unchanged (no append)
 #                             default behavior is append template content once
-#   --install-miniconda    run install_miniconda.sh from this directory as the user (needs network)
+#   --install-miniconda    copy template/shell_utils -> ~/shell_utils, run install_miniconda.sh as the user (needs network)
 #   -h, --help             show help
 #
 # Env: see common/config.env (USER_DATA_ROOT_LINK_NAME, ENABLE_DATA_ROOT_LINK, …)
@@ -177,20 +177,27 @@ append_isolation_umask_rc "${USERNAME}" "${HOME_DIR}/.zshrc" 0
 append_isolation_umask_rc "${USERNAME}" "${HOME_DIR}/.config/fish/config.fish" 0
 
 if [[ "$INSTALL_MINICONDA" -eq 1 ]]; then
-  MC="${SCRIPT_DIR}/install_miniconda.sh"
-  if [[ ! -f "$MC" ]]; then
-    die "install_miniconda.sh not found: $MC"
+  SU_SRC="${TEMPLATE_DIR}/shell_utils"
+  SU_DST="${HOME_DIR}/shell_utils"
+  MC_DST="${SU_DST}/install_miniconda.sh"
+  if [[ ! -d "$SU_SRC" ]] || [[ ! -f "${SU_SRC}/install_miniconda.sh" ]]; then
+    die "template shell_utils missing or incomplete: ${SU_SRC} (need install_miniconda.sh)"
   fi
+  run mkdir -p "${HOME_DIR}"
+  run rm -rf "${SU_DST}"
+  run cp -a "${SU_SRC}" "${SU_DST}"
+  run chown -R "${USERNAME}:${USERNAME}" "${SU_DST}"
+  run chmod +x "${MC_DST}"
   if [[ "${DRY_RUN}" == 1 ]]; then
     if command -v runuser >/dev/null 2>&1; then
-      echo "[dry-run] runuser -u ${USERNAME} -- bash ${MC}"
+      echo "[dry-run] runuser -u ${USERNAME} -- bash ${MC_DST}"
     elif command -v sudo >/dev/null 2>&1; then
-      echo "[dry-run] sudo -u ${USERNAME} -- bash ${MC}"
+      echo "[dry-run] sudo -u ${USERNAME} -- bash ${MC_DST}"
     else
       die "need runuser or sudo to run commands as another user"
     fi
   else
-    as_user "$USERNAME" bash "$MC"
+    as_user "$USERNAME" bash "$MC_DST"
   fi
 fi
 

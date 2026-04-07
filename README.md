@@ -47,7 +47,7 @@ sudo ./add-user.sh frank /data --install-rootless-docker
 
 Optional flags:
 
-- **`--install-miniconda`** — runs [`default-user-environment/install_miniconda.sh`](default-user-environment/install_miniconda.sh) as the new user.
+- **`--install-miniconda`** — copies [`template/shell_utils`](template/shell_utils) to `~/shell_utils`, then runs [`install_miniconda.sh`](template/shell_utils/install_miniconda.sh) as the new user (so the install does not depend on reading the repo from another user’s home directory).
 - **`--install-rootless-docker`** — runs [`docker/ubuntu/install-rootless-docker-for-user.sh`](docker/ubuntu/install-rootless-docker-for-user.sh) after the user exists (subuid/subgid checks, `loginctl enable-linger`, shell env snippets). The user still installs rootless Docker after login; see [`doc/en/docker.md`](doc/en/docker.md).
 
 Run `sudo ./add-user.sh --help` for the full option list.

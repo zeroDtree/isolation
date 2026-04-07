@@ -21,7 +21,7 @@
 #   --skip-templates         pass through: do not apply files from TEMPLATE_DIR
 #   --force-templates        pass through: overwrite existing rc files from templates
 #   --skip-existing-templates pass through: keep existing files unchanged (no append)
-#   --install-miniconda      pass through: run default-user-environment/install_miniconda.sh as user
+#   --install-miniconda      pass through: copy template/shell_utils -> ~/shell_utils, run install_miniconda.sh as user
 #   --install-rootless-docker prepare rootless Docker (checks, linger, shell env); user completes install per docs
 #   -h, --help               show help
 #

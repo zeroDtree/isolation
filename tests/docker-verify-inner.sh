@@ -31,7 +31,7 @@ expect_fail() {
 }
 
 cd /work
-chmod +x add-user.sh remove-user.sh fix-migrated-shared-software.sh isolation/*.sh default-user-environment/*.sh 2>/dev/null || true
+chmod +x add-user.sh remove-user.sh fix-migrated-shared-software.sh isolation/*.sh default-user-environment/*.sh template/shell_utils/*.sh 2>/dev/null || true
 
 # shellcheck source=common/config.env
 source /work/common/config.env
@@ -192,6 +192,8 @@ ok "~/${USER_DATA_ROOT_LINK_NAME} -> ${DATA_ROOT}, owned by user"
 
 if want_miniconda; then
   echo "=== miniconda: --install-miniconda for ${USER_A} ==="
+  as_user "${USER_A}" test -x "/home/${USER_A}/shell_utils/install_miniconda.sh" || \
+    fail "~/shell_utils/install_miniconda.sh missing or not executable for ${USER_A}"
   mc_root="/home/${USER_A}/miniconda3"
   mc_conda="${mc_root}/bin/conda"
   [[ -x "${mc_conda}" ]] || fail "missing conda executable: ${mc_conda}"
