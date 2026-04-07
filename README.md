@@ -67,7 +67,29 @@ Permissions applied under each path (after `chgrp -R` to `SOFTWARE_GROUP` in all
 - Requires **`ENABLE_SOFTWARE_AREA=1`** in config.
 - Use **`DRY_RUN=1`** to print planned actions only.
 
-## 4. Remove user
+## 4. Fix migrated shared data
+
+After **copying** a tree into `SHARED_DATA_PATH`, group ownership and directory **setgid** may not match the layout expected by [`doc/en/add-user.md`](doc/en/add-user.md). Use [`fix-migrated-shared-data.sh`](fix-migrated-shared-data.sh) to align paths under `SHARED_DATA_PATH` with `SHARED_GROUP` (from `common/config.env`).
+
+Each argument must **exist** and resolve to a path **under** `SHARED_DATA_PATH` (default `${DATA_ROOT}/shared_data`, often `/data/shared_data`). You can pass the tree root, one subtree, or several paths in one invocation.
+
+```bash
+# all immediate children (shell expands *; do not quote the glob)
+sudo DATA_ROOT=/path/to/data_root bash fix-migrated-shared-data.sh /path/to/data_root/shared_data/* --normalize-perms
+```
+
+Permissions applied under each path (after `chgrp -R` to `SHARED_GROUP` in all cases):
+
+| Target                          | Default                                              | With `--normalize-perms`      |
+| ------------------------------- | ---------------------------------------------------- | ----------------------------- |
+| Directories                     | Add setgid: `chmod g+s` (other mode bits left as-is) | `2755` (setgid + `rwxr-xr-x`) |
+| Regular files (no execute bit)  | Unchanged                                            | `644`                         |
+| Regular files (any execute bit) | Unchanged                                            | `755`                         |
+
+- Ensure **`SHARED_DATA_PATH`** exists (`isolation/init-host.sh` creates it).
+- Use **`DRY_RUN=1`** to print planned actions only.
+
+## 5. Remove user
 
 [`remove-user.sh`](remove-user.sh) removes an account created by this flow. It does **not** tear down host-wide layout (shared data dir, shared software tree, or other users).
 
@@ -79,7 +101,7 @@ sudo DATA_ROOT=/path/to/data_root bash remove-user.sh USERNAME
 
 Run `sudo ./remove-user.sh --help` for detailed options.
 
-## 5. Docker smoke test
+## 6. Docker smoke test
 
 Requires Docker. Runs the repo checks inside a container (default image `ubuntu:24.04`).
 
@@ -89,7 +111,7 @@ bash tests/docker-verify.sh --no-install-miniconda
 
 Pass a different image as the first argument if it is not an option flag, for example `bash tests/docker-verify.sh debian:bookworm --no-install-miniconda`. Use `--install-miniconda` or set `INSTALL_MINICONDA=1` (default) to exercise the Miniconda path (needs network in the container).
 
-## 6. Design reference
+## 7. Design reference
 
 - [`doc/en/add-user.md`](doc/en/add-user.md) — account and directory isolation
 - [`doc/en/default.md`](doc/en/default.md) — collaborative software directory, `~/data` → `DATA_ROOT`, templates, optional Miniconda
