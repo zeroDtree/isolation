@@ -185,7 +185,8 @@ if [[ "$INSTALL_MINICONDA" -eq 1 ]]; then
   fi
   run mkdir -p "${HOME_DIR}"
   run rm -rf "${SU_DST}"
-  run cp -a "${SU_SRC}" "${SU_DST}"
+  # Follow symlinks so ~/shell_utils is real files (symlinks into the repo break for other users).
+  run cp -aL "${SU_SRC}" "${SU_DST}"
   run chown -R "${USERNAME}:${USERNAME}" "${SU_DST}"
   run chmod +x "${MC_DST}"
   if [[ "${DRY_RUN}" == 1 ]]; then

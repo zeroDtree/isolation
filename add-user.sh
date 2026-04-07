@@ -157,7 +157,7 @@ DATA_ROOT="${DATA_DIR}" "${ADD_USER_SCRIPT}" "${ADD_ARGS[@]}"
 if [[ "${DEFAULT_USER_ENV}" -eq 1 ]]; then
   _S=$((_S + 1))
   echo "[step ${_S}/${_TOTAL}] init shared software layout (doc/en/default.md)"
-  "${INIT_SHARED_SOFTWARE}"
+  DATA_ROOT="${DATA_DIR}" "${INIT_SHARED_SOFTWARE}"
 
   _S=$((_S + 1))
   echo "[step ${_S}/${_TOTAL}] apply default user environment for ${USERNAME}"
