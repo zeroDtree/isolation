@@ -7,7 +7,7 @@ Shell tooling to provision **isolated Linux accounts** with a predictable **data
 Defaults live in [`common/config.env`](common/config.env). Override for a single run with environment variables, for example:
 
 ```bash
-sudo DATA_ROOT=/mnt/storage ./add-user.sh alice
+sudo DATA_ROOT=/path/to/data_root ./add-user.sh USERNAME
 ```
 
 ## 2. Add user
@@ -15,23 +15,15 @@ sudo DATA_ROOT=/mnt/storage ./add-user.sh alice
 Main entry point: [`add-user.sh`](add-user.sh).
 
 ```bash
-sudo ./add-user.sh USERNAME [options]
+sudo DATA_ROOT=/path/to/data_root bash add-user.sh USERNAME [options]
 ```
 
-`DATA_ROOT` comes from [`common/config.env`](common/config.env) (default `/data`) or override per run, e.g. `sudo DATA_ROOT=/mnt/storage ./add-user.sh alice`. It must be an **absolute** path.
+`DATA_ROOT` comes from [`common/config.env`](common/config.env) (default `/data`) or override per run. It must be an **absolute** path.
 
 **Examples**
 
 ```bash
-sudo ./add-user.sh alice --password 'your-password'
-```
-
-```bash
-sudo ./add-user.sh alice --password 'your-password' --install-miniconda
-```
-
-```bash
-sudo ./add-user.sh frank --install-rootless-docker
+sudo DATA_ROOT=/data bash ./add-user.sh alice --password 'your-password' --install-miniconda --install-rootless-docker
 ```
 
 **What it does (typical run)**
@@ -60,14 +52,8 @@ After **copying** a tree into `SOFTWARE_ROOT`, group ownership and directory **s
 Each argument must **exist** and resolve to a path **under** `SOFTWARE_ROOT` (default `${DATA_ROOT}/shared_software`, often `/data/shared_software`). You can pass the tree root, one subtree, or several paths in one invocation.
 
 ```bash
-# whole shared software tree (when SOFTWARE_ROOT is /data/shared_software)
-sudo ./fix-migrated-shared-software.sh /data/shared_software
-
-# one migrated package
-sudo ./fix-migrated-shared-software.sh /data/shared_software/some-tool
-
 # all immediate children (shell expands *; do not quote the glob)
-sudo ./fix-migrated-shared-software.sh /data/shared_software/*
+sudo DATA_ROOT=/data bash fix-migrated-shared-software.sh /data/shared_software/* --normalize-perms
 ```
 
 Permissions applied under each path (after `chgrp -R` to `SOFTWARE_GROUP` in all cases):
@@ -86,7 +72,7 @@ Permissions applied under each path (after `chgrp -R` to `SOFTWARE_GROUP` in all
 [`remove-user.sh`](remove-user.sh) removes an account created by this flow. It does **not** tear down host-wide layout (shared data dir, shared software tree, or other users).
 
 ```bash
-sudo ./remove-user.sh USERNAME [options]
+sudo DATA_ROOT=/path/to/data_root bash remove-user.sh USERNAME
 ```
 
 `DATA_ROOT` must match the value used when the user was added (set the same way as for `add-user.sh`). Options are passed to [`isolation/remove-isolation-user.sh`](isolation/remove-isolation-user.sh) (`--keep-home`, `--keep-user-data`, `--dry-run`, `--force`, `--ignore-missing`, …). 
