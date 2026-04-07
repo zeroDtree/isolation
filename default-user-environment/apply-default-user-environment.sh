@@ -125,8 +125,18 @@ if [[ "$SKIP_TEMPLATES" -eq 0 ]] && [[ -d "${TEMPLATE_DIR}" ]]; then
     local dst_rel="$2"
     local src="${TEMPLATE_DIR}/${src_name}"
     local dst="${HOME_DIR}/${dst_rel}"
-    local begin_mark="# >>> isolation template ${src_name} >>>"
-    local end_mark="# <<< isolation template ${src_name} <<<"
+    local begin_mark end_mark
+    case "${src_name}" in
+      vimrc|vimrc.sh)
+        # Vim line comments start with ". Bash/zsh/fish use #.
+        begin_mark="\" >>> isolation template ${src_name} >>>"
+        end_mark="\" <<< isolation template ${src_name} <<<"
+        ;;
+      *)
+        begin_mark="# >>> isolation template ${src_name} >>>"
+        end_mark="# <<< isolation template ${src_name} <<<"
+        ;;
+    esac
     [[ -f "$src" ]] || return 0
     run mkdir -p "$(dirname "$dst")"
     chown_parents_under_home "$dst"
@@ -141,13 +151,17 @@ if [[ "$SKIP_TEMPLATES" -eq 0 ]] && [[ -d "${TEMPLATE_DIR}" ]]; then
     fi
 
     # Default mode: append template block once, or replace existing marked block(s).
+    # Boundary markers use # for shell configs and " for vimrc (see case above).
     local block_tmp
     block_tmp="$(mktemp)"
     {
       echo ""
       echo "${begin_mark}"
+      echo ""
       cat "$src"
+      echo ""
       echo "${end_mark}"
+      echo ""
     } >"${block_tmp}"
 
     if [[ "${DRY_RUN}" == 1 ]]; then

@@ -219,6 +219,12 @@ count_mark="$(grep -cF "${tpl_mark}" "${bashrc_a}" || true)"
 [[ "${count_mark}" == "1" ]] || fail "re-apply default should keep one template block, got ${count_mark}"
 ok "default template: append once, re-apply replaces block (idempotent marker count)"
 
+vimrc_a="/home/${USER_A}/.vimrc"
+if [[ -f "${vimrc_a}" ]] && grep -qF '" >>> isolation template' "${vimrc_a}" 2>/dev/null; then
+  grep -q '^" >>> isolation template' "${vimrc_a}" || fail ".vimrc template block should use Vim comment prefix (\") not #"
+  ok ".vimrc isolation markers use Vim-style comments"
+fi
+
 # skip-existing mode should preserve existing file content.
 before_sum="$(sha256sum "${bashrc_a}" | awk '{print $1}')"
 ./default-user-environment/apply-default-user-environment.sh "${USER_A}" --skip-existing-templates >/dev/null
