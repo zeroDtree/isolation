@@ -1,12 +1,13 @@
 # Default User Environment and Software Layout
 
-This document describes how to prepare a default working environment in bulk or via automation *after a system user is created*, under the assumption of *per-user accounts and directory permissions*: per-user software (e.g. Miniconda), *collaborative* shared-software trees via symbolic links, and default configuration for Bash, Zsh, Fish, and Vim. The goals align with *Server Permission Isolation Design*: data and permissions are separated by UID; the shared software area is writable and usable within a Unix group, while a directory sticky bit prevents users from deleting each other's entries.
+This document describes how to prepare a default working environment in bulk or via automation *after a system user is created*, under the assumption of *per-user accounts and directory permissions*: per-user software (e.g. Miniconda), *collaborative* shared-software trees via symbolic links (including `~/data` and optional `~/.cache` into private data), and default configuration for Bash, Zsh, Fish, and Vim. The goals align with *Server Permission Isolation Design*: data and permissions are separated by UID; the shared software area is writable and usable within a Unix group, while a directory sticky bit prevents users from deleting each other's entries.
 
 ## Design principles
 
 - *Per-user software under the home directory*: owned and `chown`ed by that user (e.g. `~/miniconda3` or `~/.local`), avoiding mixing with system-wide installs and simplifying backup and migration.
 - *Collaborative shared software directory*: symbolic links such as `~/shared_software` point at one shared tree (e.g. `/data/shared_software`); members may *install or place* software there, *read and execute* content others added, but *must not delete or rename* entries they do not own (sticky bit `t` on the directory and ownership rules; see below).
 - *Data root convenience link*: a symbolic link in the home directory (default `~/data`) points at `DATA_ROOT` (e.g. `/data`) so users can reach shared datasets, per-user `*_data` trees, and other layout under one stable name without hunting for the host path. Configure `USER_DATA_ROOT_LINK_NAME` and `ENABLE_DATA_ROOT_LINK` in `common/config.env`; `add-user.sh` uses `DATA_ROOT` from `common/config.env` (or an override per invocation, e.g. `DATA_ROOT=/path`) when applying defaults.
+- *Cache on private data* (optional): `~/.cache` can be a symlink into that user's private data directory (same `${DATA_ROOT}/<prefix><username><suffix>/…` layout as elsewhere; backing basename from `USER_CACHE_BACKING_NAME`, default `.cache`) so caches stay user-owned and off the home volume naming. Configure `ENABLE_USER_CACHE_LINK` in `common/config.env`; `add-user.sh` and `apply-default-user-environment.sh` accept `--no-user-cache-link` to skip this step for one invocation.
 - *Maintainable default configuration*: skeleton files live in `/etc/skel` or a root-maintained template directory and are copied to `~` via `useradd -m -k` or a first-login / post-create script; sensitive values (API keys, etc.) remain the user's responsibility.
 - *Consistent with the permission model*: whether someone can *use another user's software* depends on read/execute bits on files and directories; whether they can *delete another user's entries* is governed by the sticky bit and ownership, alongside home-directory isolation.
 
@@ -47,6 +48,18 @@ Optionally, add a second link for the data root itself (same idea: stable path, 
 ln -sfn /data /home/user_a/data
 chown -h user_a:user_a /home/user_a/data   # -h: change the symlink, not the data root
 ```
+
+Optionally, point `~/.cache` at a directory under that user's private data tree (example suffix `_data`):
+
+```bash
+# root or provisioning script (ensure /data/user_a_data exists and is owned by user_a first)
+mkdir -p /data/user_a_data/.cache
+chown user_a:user_a /data/user_a_data/.cache
+ln -sfn /data/user_a_data/.cache /home/user_a/.cache
+chown -h user_a:user_a /home/user_a/.cache
+```
+
+`apply-default-user-environment.sh` performs this when enabled (and can migrate an existing real `~/.cache` directory when safe); see the script header for flags and edge cases.
 
 If you run `apply-default-user-environment.sh` outside `add-user.sh`, set `DATA_ROOT` to match the path used when the account was provisioned.
 

@@ -1,6 +1,13 @@
 # Isolation
 
-Shell tooling to provision **isolated Linux accounts** with a predictable **data layout** (shared datasets + per-user private trees), optional **collaborative shared software** (`~/shared_software`), a **default shell environment** (symlinks, templates, optional Miniconda), and optional **rootless Docker preparation** for a new user. The design is described in the Markdown docs under `doc/en/`.
+Shell tooling to provision **isolated Linux accounts**. It covers:
+
+- **Data layout** — shared datasets plus per-user private trees under a configurable root.
+- **Collaborative shared software** (optional) — e.g. `~/shared_software` into a shared tree on the host.
+- **Default shell environment** — symlinks such as `~/data` and optional `~/.cache` into private data, templates, and optional Miniconda.
+- **Rootless Docker preparation** (optional) — host checks and user-facing setup hooks.
+
+Design write-ups live under [`doc/en/`](doc/en/).
 
 ## 1. Configuration
 
@@ -33,12 +40,14 @@ sudo DATA_ROOT=/data bash add-user.sh alice --password 'your-password' --install
 3. **Default environment** (unless `--no-default-user-env`) — initializes shared software layout ([`default-user-environment/init-shared-software-layout.sh`](default-user-environment/init-shared-software-layout.sh)) and applies env for that user ([`default-user-environment/apply-default-user-environment.sh`](default-user-environment/apply-default-user-environment.sh)):
    - **`~/shared_software`** → collaborative tree on the host (`SOFTWARE_ROOT`, default `${DATA_ROOT}/shared_software`) when enabled.
    - **`~/data`** → `DATA_ROOT` when `ENABLE_DATA_ROOT_LINK=1`, so shared and per-user `*_data` dirs are reachable from home.
+   - **`~/.cache`** → a directory under the per-user private data tree (same `${DATA_ROOT}/<prefix><username><suffix>/…` rule as step 2; backing basename `USER_CACHE_BACKING_NAME`, default `.cache`) when `ENABLE_USER_CACHE_LINK=1`; use **`--no-user-cache-link`** on `add-user.sh` to skip for that run.
    - **Templates** from `template/`: [`bashrc.sh`](template/bashrc.sh), [`zshrc.sh`](template/zshrc.sh), [`config.fish`](template/config.fish), [`vimrc`](template/vimrc) (behavior controlled by `--skip-templates`, `--force-templates`, etc.).
 
 4. **Rootless Docker prep** (only with `--install-rootless-docker`) — [`docker/ubuntu/install-rootless-docker-for-user.sh`](docker/ubuntu/install-rootless-docker-for-user.sh); runs after user creation.
 
 Optional flags:
 
+- **`--no-user-cache-link`** / **`--with-user-cache-link`** — disable or re-enable the `~/.cache` symlink step for that invocation (see `ENABLE_USER_CACHE_LINK` in config).
 - **`--install-miniconda`** — copies [`template/shell_utils`](template/shell_utils) to `~/shell_utils`, then runs [`install_miniconda.sh`](template/shell_utils/install_miniconda.sh) as the new user (so the install does not depend on reading the repo from another user’s home directory).
 - **`--install-rootless-docker`** — runs [`docker/ubuntu/install-rootless-docker-for-user.sh`](docker/ubuntu/install-rootless-docker-for-user.sh) after the user exists (subuid/subgid checks, `loginctl enable-linger`, shell env snippets). The user still installs rootless Docker after login; see [`doc/en/docker.md`](doc/en/docker.md).
 
@@ -114,7 +123,7 @@ Pass a different image as the first argument if it is not an option flag, for ex
 ## 7. Design reference
 
 - [`doc/en/add-user.md`](doc/en/add-user.md) — account and directory isolation
-- [`doc/en/default.md`](doc/en/default.md) — collaborative software directory, `~/data` → `DATA_ROOT`, templates, optional Miniconda
+- [`doc/en/default.md`](doc/en/default.md) — collaborative software directory, `~/data` → `DATA_ROOT`, optional `~/.cache` → private user data, templates, optional Miniconda
 - [`doc/en/docker.md`](doc/en/docker.md) — rootless Docker preparation and post-login install
 
 Host install helpers for Docker on Ubuntu live under [`docker/ubuntu/`](docker/ubuntu/) (apt repo, optional root daemon disable, per-user prep script).
