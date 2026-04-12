@@ -8,14 +8,23 @@
 #   sudo ./apply-default-user-environment.sh USERNAME [options]
 #
 # Options:
-#   --no-join-software     do not add user to SOFTWARE_GROUP or create ~/shared_software link
+# @help-options-begin
+#   --no-join-shared-software-group  do not add user to SOFTWARE_GROUP or create ~/shared_software link
+#   --with-join-shared-software-group add to SOFTWARE_GROUP and ~/shared_software (default; clarity only)
 #   --no-user-cache-link   do not symlink ~/.cache to private USER_DATA cache directory
+#   --with-user-cache-link symlink ~/.cache when ENABLE_USER_CACHE_LINK=1 (default; clarity after --no-user-cache-link)
 #   --skip-templates          do not apply files from TEMPLATE_DIR
+#   --with-templates          apply files from TEMPLATE_DIR (default; clarity after --skip-templates)
 #   --force-templates         overwrite destination files from templates
+#   --no-force-templates      merge/replace per default rules (default; clarity after --force-templates)
 #   --skip-existing-templates keep existing files unchanged (no merge/replace)
+#   --no-skip-existing-templates default merge/replace behavior (clarity after --skip-existing-templates)
 #                             default: append if no marker, else replace isolation template block(s)
-#   --install-miniconda    copy template/shell_utils -> ~/shell_utils, run install_miniconda.sh as the user (needs network)
+#   --install-miniconda    same as --with-install-miniconda
+#   --with-install-miniconda copy template/shell_utils -> ~/shell_utils, run install_miniconda.sh as the user (needs network)
+#   --no-install-miniconda skip Miniconda install (default)
 #   -h, --help             show help
+# @help-options-end
 #
 # Env: see common/config.env (USER_DATA_ROOT_LINK_NAME, ENABLE_DATA_ROOT_LINK, ENABLE_USER_CACHE_LINK, USER_CACHE_BACKING_NAME, …)
 #      DATA_ROOT must match the data root used for this user (same as add-user.sh / common/config.env; standalone: sudo DATA_ROOT=... ./apply-...)
@@ -48,28 +57,52 @@ shift || true
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --no-join-software)
+    --no-join-shared-software-group)
       JOIN_SOFTWARE=0
+      shift
+      ;;
+    --with-join-shared-software-group)
+      JOIN_SOFTWARE=1
       shift
       ;;
     --no-user-cache-link)
       JOIN_USER_CACHE_LINK=0
       shift
       ;;
+    --with-user-cache-link)
+      JOIN_USER_CACHE_LINK=1
+      shift
+      ;;
     --skip-templates)
       SKIP_TEMPLATES=1
+      shift
+      ;;
+    --with-templates)
+      SKIP_TEMPLATES=0
       shift
       ;;
     --force-templates)
       FORCE_TEMPLATES=1
       shift
       ;;
+    --no-force-templates)
+      FORCE_TEMPLATES=0
+      shift
+      ;;
     --skip-existing-templates)
       SKIP_EXISTING_TEMPLATES=1
       shift
       ;;
-    --install-miniconda)
+    --no-skip-existing-templates)
+      SKIP_EXISTING_TEMPLATES=0
+      shift
+      ;;
+    --install-miniconda|--with-install-miniconda)
       INSTALL_MINICONDA=1
+      shift
+      ;;
+    --no-install-miniconda)
+      INSTALL_MINICONDA=0
       shift
       ;;
     -h|--help)

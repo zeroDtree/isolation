@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-time host layout: DATA_ROOT, shared_ro group, SHARED_DATA_PATH per doc/main.typ
+# One-time host layout: DATA_ROOT, SHARED_GROUP (default shared_data), SHARED_DATA_PATH per doc/main.typ
 #
 # Usage: sudo ./init-host.sh
 # Env:   see common/config.env (override DATA_ROOT, SHARED_DATA_DIR_NAME, SHARED_DATA_PATH, SHARED_DATA_MODE, DRY_RUN, etc.)
@@ -21,4 +21,4 @@ run chown "root:${SHARED_GROUP}" "${SHARED_DATA_PATH}"
 run chmod "${SHARED_DATA_MODE}" "${SHARED_DATA_PATH}"
 
 echo "ok: ${SHARED_DATA_PATH} ready (group ${SHARED_GROUP}, mode ${SHARED_DATA_MODE})"
-echo "    add users with add-isolation-user.sh; use --join-shared-ro to add ${SHARED_GROUP} (access per SHARED_DATA_MODE)"
+echo "    add users with isolation/add-isolation-user.sh or add-user.sh; they join ${SHARED_GROUP} by default (use --no-join-shared-data-group to skip)"

@@ -3,11 +3,9 @@
 Shell tooling to provision **isolated Linux accounts**. It covers:
 
 - **Data layout** — shared datasets plus per-user private trees under a configurable root.
-- **Collaborative shared software** (optional) — e.g. `~/shared_software` into a shared tree on the host.
-- **Default shell environment** — symlinks such as `~/data` and optional `~/.cache` into private data, templates, and optional Miniconda.
+- **Collaborative shared software** (optional) — e.g. default `~/shared_software` (configurable via `USER_SOFTWARE_LINK_NAME`) into a shared tree on the host.
+- **Default shell environment** — symlinks such as default `~/data` (`USER_DATA_ROOT_LINK_NAME`) and optional `~/.cache` into private data, templates, and optional Miniconda.
 - **Rootless Docker preparation** (optional) — host checks and user-facing setup hooks.
-
-Design write-ups live under [`doc/en/`](doc/en/).
 
 ## 1. Configuration
 
@@ -30,33 +28,26 @@ sudo DATA_ROOT=/path/to/data_root bash add-user.sh USERNAME [options]
 **Examples**
 
 ```bash
-sudo DATA_ROOT=/data bash add-user.sh alice --password 'your-password' --install-miniconda --install-rootless-docker
+sudo DATA_ROOT=/data bash add-user.sh alice --password 'your-password' --with-install-miniconda --with-install-rootless-docker
 ```
 
 **What it does (typical run)**
 
-1. **Host layout** — [`isolation/init-host.sh`](isolation/init-host.sh): ensures `DATA_ROOT`, shared dataset directory (default `${DATA_ROOT}/shared_data`), and `shared_ro` group/mode per config.
+1. **Host layout** — [`isolation/init-host.sh`](isolation/init-host.sh): ensures `DATA_ROOT`, shared dataset directory (default `${DATA_ROOT}/shared_data`), and `SHARED_GROUP` (default `shared_data`) plus mode per config.
 2. **User** — [`isolation/add-isolation-user.sh`](isolation/add-isolation-user.sh): creates the account, home under `/home/<username>`, and private data at `${DATA_ROOT}/<username>_data` (suffix configurable via `USER_DATA_SUFFIX`; optional prefix via `USER_DATA_PREFIX`).
-3. **Default environment** (unless `--no-default-user-env`) — initializes shared software layout ([`default-user-environment/init-shared-software-layout.sh`](default-user-environment/init-shared-software-layout.sh)) and applies env for that user ([`default-user-environment/apply-default-user-environment.sh`](default-user-environment/apply-default-user-environment.sh)):
-   - **`~/shared_software`** → collaborative tree on the host (`SOFTWARE_ROOT`, default `${DATA_ROOT}/shared_software`) when enabled.
-   - **`~/data`** → `DATA_ROOT` when `ENABLE_DATA_ROOT_LINK=1`, so shared and per-user `*_data` dirs are reachable from home.
-   - **`~/.cache`** → a directory under the per-user private data tree (same `${DATA_ROOT}/<prefix><username><suffix>/…` rule as step 2; backing basename `USER_CACHE_BACKING_NAME`, default `.cache`) when `ENABLE_USER_CACHE_LINK=1`; use **`--no-user-cache-link`** on `add-user.sh` to skip for that run.
-   - **Templates** from `template/`: [`bashrc.sh`](template/bashrc.sh), [`zshrc.sh`](template/zshrc.sh), [`config.fish`](template/config.fish), [`vimrc`](template/vimrc) (behavior controlled by `--skip-templates`, `--force-templates`, etc.).
+3. **Default environment** (unless `--no-default-user-env`) — runs shared software layout init ([`default-user-environment/init-shared-software-layout.sh`](default-user-environment/init-shared-software-layout.sh); no-op when `ENABLE_SOFTWARE_AREA` is not `1`) and applies env for that user ([`default-user-environment/apply-default-user-environment.sh`](default-user-environment/apply-default-user-environment.sh)):
+   - **`~/shared_software`** (default link name `USER_SOFTWARE_LINK_NAME`) → collaborative tree on the host (`SOFTWARE_ROOT`, default `${DATA_ROOT}/shared_software`) when **`ENABLE_SOFTWARE_AREA=1`** and you do not pass **`--no-join-shared-software-group`** (default is to join).
+   - **`~/data`** (default link name `USER_DATA_ROOT_LINK_NAME`) → `DATA_ROOT` when **`ENABLE_DATA_ROOT_LINK=1`**, so shared and per-user `*_data` dirs are reachable from home.
+   - **`~/.cache`** → a directory under the per-user private data tree (same `${DATA_ROOT}/<prefix><username><suffix>/…` rule as step 2; backing basename `USER_CACHE_BACKING_NAME`, default `.cache`) when **`ENABLE_USER_CACHE_LINK=1`** and you do not pass **`--no-user-cache-link`** on `add-user.sh` (default is to create the symlink when both config and CLI allow it).
+   - **Templates** from `template/`: [`bashrc.sh`](template/bashrc.sh), [`zshrc.sh`](template/zshrc.sh), [`config.fish`](template/config.fish), [`vimrc`](template/vimrc) (or `vimrc.sh` if present). Flags include **`--skip-templates`** / **`--with-templates`**, **`--force-templates`** / **`--no-force-templates`**, **`--skip-existing-templates`** / **`--no-skip-existing-templates`**.
 
-4. **Rootless Docker prep** (only with `--install-rootless-docker`) — [`docker/ubuntu/install-rootless-docker-for-user.sh`](docker/ubuntu/install-rootless-docker-for-user.sh); runs after user creation.
+4. **Rootless Docker prep** (only with **`--with-install-rootless-docker`**) — runs [`docker/ubuntu/install-rootless-docker-for-user.sh`](docker/ubuntu/install-rootless-docker-for-user.sh) after user creation. Use **`--no-install-rootless-docker`** to skip explicitly.
 
-Optional flags:
-
-- **`--no-user-cache-link`** / **`--with-user-cache-link`** — disable or re-enable the `~/.cache` symlink step for that invocation (see `ENABLE_USER_CACHE_LINK` in config).
-- **`--install-miniconda`** — copies [`template/shell_utils`](template/shell_utils) to `~/shell_utils`, then runs [`install_miniconda.sh`](template/shell_utils/install_miniconda.sh) as the new user (so the install does not depend on reading the repo from another user’s home directory).
-- **`--install-rootless-docker`** — runs [`docker/ubuntu/install-rootless-docker-for-user.sh`](docker/ubuntu/install-rootless-docker-for-user.sh) after the user exists (subuid/subgid checks, `loginctl enable-linger`, shell env snippets). The user still installs rootless Docker after login; see [`doc/en/docker.md`](doc/en/docker.md).
-
-Run `sudo ./add-user.sh --help` for the full option list.
-
+Optional flags (see `sudo ./add-user.sh --help` for the full list):
 
 ## 3. Fix migrated shared software
 
-After **copying** a tree into `SOFTWARE_ROOT`, group ownership and directory **setgid** may not match the layout expected by [`doc/en/default.md`](doc/en/default.md). Use [`fix-migrated-shared-software.sh`](fix-migrated-shared-software.sh) to align paths under `SOFTWARE_ROOT` with `SOFTWARE_GROUP` (from `common/config.env`).
+After **copying** a tree into `SOFTWARE_ROOT`, group ownership and directory **setgid** may not match the collaborative layout this tooling expects. Use [`fix-migrated-shared-software.sh`](fix-migrated-shared-software.sh) to align paths under `SOFTWARE_ROOT` with `SOFTWARE_GROUP` (from `common/config.env`).
 
 Each argument must **exist** and resolve to a path **under** `SOFTWARE_ROOT` (default `${DATA_ROOT}/shared_software`, often `/data/shared_software`). You can pass the tree root, one subtree, or several paths in one invocation.
 
@@ -78,7 +69,7 @@ Permissions applied under each path (after `chgrp -R` to `SOFTWARE_GROUP` in all
 
 ## 4. Fix migrated shared data
 
-After **copying** a tree into `SHARED_DATA_PATH`, group ownership and directory **setgid** may not match the layout expected by [`doc/en/add-user.md`](doc/en/add-user.md). Use [`fix-migrated-shared-data.sh`](fix-migrated-shared-data.sh) to align paths under `SHARED_DATA_PATH` with `SHARED_GROUP` (from `common/config.env`).
+After **copying** a tree into `SHARED_DATA_PATH`, group ownership and directory **setgid** may not match the shared-data layout this tooling expects. Use [`fix-migrated-shared-data.sh`](fix-migrated-shared-data.sh) to align paths under `SHARED_DATA_PATH` with `SHARED_GROUP` (from `common/config.env`).
 
 Each argument must **exist** and resolve to a path **under** `SHARED_DATA_PATH` (default `${DATA_ROOT}/shared_data`, often `/data/shared_data`). You can pass the tree root, one subtree, or several paths in one invocation.
 
@@ -106,7 +97,7 @@ Permissions applied under each path (after `chgrp -R` to `SHARED_GROUP` in all c
 sudo DATA_ROOT=/path/to/data_root bash remove-user.sh USERNAME
 ```
 
-`DATA_ROOT` must match the value used when the user was added (set the same way as for `add-user.sh`). Options are passed to [`isolation/remove-isolation-user.sh`](isolation/remove-isolation-user.sh) (`--keep-home`, `--keep-user-data`, `--dry-run`, `--force`, `--ignore-missing`, …). 
+`DATA_ROOT` must match the value used when the user was added (set the same way as for `add-user.sh`). Options are passed to [`isolation/remove-isolation-user.sh`](isolation/remove-isolation-user.sh) (`--keep-home`, `--keep-user-data`, `--dry-run`, `--force`, `--ignore-missing`, …).
 
 Run `sudo ./remove-user.sh --help` for detailed options.
 
@@ -118,12 +109,4 @@ Requires Docker. Runs the repo checks inside a container (default image `ubuntu:
 bash tests/docker-verify.sh --no-install-miniconda
 ```
 
-Pass a different image as the first argument if it is not an option flag, for example `bash tests/docker-verify.sh debian:bookworm --no-install-miniconda`. Use `--install-miniconda` or set `INSTALL_MINICONDA=1` (default) to exercise the Miniconda path (needs network in the container).
-
-## 7. Design reference
-
-- [`doc/en/add-user.md`](doc/en/add-user.md) — account and directory isolation
-- [`doc/en/default.md`](doc/en/default.md) — collaborative software directory, `~/data` → `DATA_ROOT`, optional `~/.cache` → private user data, templates, optional Miniconda
-- [`doc/en/docker.md`](doc/en/docker.md) — rootless Docker preparation and post-login install
-
-Host install helpers for Docker on Ubuntu live under [`docker/ubuntu/`](docker/ubuntu/) (apt repo, optional root daemon disable, per-user prep script).
+[`tests/docker-verify.sh`](tests/docker-verify.sh) is **not** `add-user.sh`: it accepts **`--no-install-miniconda`** and **`--with-install-miniconda`** only on this wrapper (same naming as `add-user.sh`), and exports **`INSTALL_MINICONDA`** for [`tests/docker-verify-inner.sh`](tests/docker-verify-inner.sh) (default `1`, so the inner script runs `add-user.sh … --with-install-miniconda` unless you skip). The **container image** is the optional **first** argument (default `ubuntu:24.04` if omitted), same style as **`USERNAME [options]`** elsewhere; put Miniconda flags **after** the image, for example `bash tests/docker-verify.sh debian:bookworm --no-install-miniconda`. You can also set **`INSTALL_MINICONDA=0`** in the environment instead of **`--no-install-miniconda`**. The Miniconda path needs network in the container.

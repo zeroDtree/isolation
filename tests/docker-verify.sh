@@ -1,15 +1,43 @@
 #!/usr/bin/env bash
-# Run isolation repo checks inside Docker (Linux + root). Usage:
-#   ./tests/docker-verify.sh [IMAGE] [--no-install-miniconda|--install-miniconda]
-# Default IMAGE: ubuntu:24.04
+# @help-begin
+# Run isolation repo checks inside Docker (Linux + root).
+#
+# Usage:
+#   ./tests/docker-verify.sh [IMAGE] [options]
+#
+# IMAGE defaults to ubuntu:24.04 when omitted (must be the first argument when given).
+#
+# Options:
+#   --no-install-miniconda    skip Miniconda during verify (exports INSTALL_MINICONDA=0)
+#   --with-install-miniconda  install Miniconda (default; clarity only)
+#   -h, --help               show help
+#
 # Env: USER_A, USER_B, USER_C (optional; default iso_a / iso_b / iso_c)
-# Env: INSTALL_MINICONDA (default 1) — pass 0 or use --no-install-miniconda to skip
+# Env: INSTALL_MINICONDA (default 1) — set 0 or use --no-install-miniconda to skip
 #      Miniconda download (needs wget/curl in the image).
+# @help-end
 
 set -euo pipefail
+
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 IMAGE="ubuntu:24.04"
 INSTALL_MINICONDA="${INSTALL_MINICONDA:-1}"
+
+usage() {
+  awk '/^# @help-begin$/{f=1; next} /^# @help-end$/{f=0} f' "$0"
+  exit 0
+}
+
+case "${1:-}" in
+  -h|--help)
+    usage
+    ;;
+esac
+
+if [[ $# -gt 0 && "$1" != -* ]]; then
+  IMAGE="$1"
+  shift
+fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -17,17 +45,17 @@ while [[ $# -gt 0 ]]; do
       INSTALL_MINICONDA=0
       shift
       ;;
-    --install-miniconda)
+    --with-install-miniconda)
       INSTALL_MINICONDA=1
       shift
       ;;
-    -*)
-      echo "usage: $0 [IMAGE] [--no-install-miniconda|--install-miniconda]" >&2
-      exit 1
+    -h|--help)
+      usage
       ;;
     *)
-      IMAGE="$1"
-      shift
+      echo "error: unknown option or unexpected argument: $1" >&2
+      echo "Run: $0 --help" >&2
+      exit 1
       ;;
   esac
 done

@@ -5,8 +5,8 @@
 # Usage:
 #   sudo ./run-default-user-environment.sh USERNAME [apply-options...]
 #
-# Apply options are passed through to apply-default-user-environment.sh (--no-join-software,
-# --skip-templates, --force-templates, --install-miniconda).
+# Apply options are passed through to apply-default-user-environment.sh (e.g. --no-join-shared-software-group,
+# --skip-templates, --with-templates, --force-templates, --with-install-miniconda).
 #
 # Env: DATA_ROOT and others apply to isolation scripts only if you chain with add-user.sh separately;
 # for this wrapper, init uses SOFTWARE_* from common/config.env.

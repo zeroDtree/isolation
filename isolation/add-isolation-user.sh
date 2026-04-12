@@ -1,23 +1,25 @@
 #!/usr/bin/env bash
 # @help-begin
-# Create a research user with private home and data dir modes (USER_HOME_MODE, USER_DATA_DIR_MODE; default 700), shared_ro by default.
+# Create a research user with private home and data dir modes (USER_HOME_MODE, USER_DATA_DIR_MODE; default 700), shared-data group by default.
 # Directory permissions only — no CPU/memory/task limits (see doc/main.typ).
 #
 # Usage:
 #   sudo ./add-isolation-user.sh USERNAME [options]
 #
 # Options:
+# @help-options-begin
 #   --uid UID                 explicit UID (must be free)
 #   --password PASS           set login password for the new user
-#   --join-shared-ro         add user to shared_ro (default behavior)
-#   --no-join-shared-ro      do not add user to shared_ro
+#   --join-shared-data-group   add user to SHARED_GROUP for shared datasets (default behavior)
+#   --no-join-shared-data-group do not add user to SHARED_GROUP
 #   --shell PATH             login shell (default /bin/bash)
+# @help-options-end
 #
 # Examples:
 #   sudo ./add-isolation-user.sh alice
 #   sudo ./add-isolation-user.sh alice --password 'S3cret!'
-#   sudo ./add-isolation-user.sh bob --join-shared-ro
-#   sudo ./add-isolation-user.sh carol --no-join-shared-ro
+#   sudo ./add-isolation-user.sh bob --join-shared-data-group
+#   sudo ./add-isolation-user.sh carol --no-join-shared-data-group
 #
 # Defaults: see common/config.env (DATA_ROOT, USER_HOME_MODE, USER_DATA_DIR_MODE, …)
 # @help-end
@@ -27,7 +29,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../common/utils.sh
 source "${SCRIPT_DIR}/../common/utils.sh"
 
-JOIN_SHARED_RO=1
+JOIN_SHARED_DATA_GROUP=1
 SHELL_PATH="${DEFAULT_LOGIN_SHELL}"
 EXPLICIT_UID=""
 LOGIN_PASSWORD=""
@@ -53,12 +55,12 @@ while [[ $# -gt 0 ]]; do
       LOGIN_PASSWORD="${2:?}"
       shift 2
       ;;
-    --join-shared-ro)
-      JOIN_SHARED_RO=1
+    --join-shared-data-group)
+      JOIN_SHARED_DATA_GROUP=1
       shift
       ;;
-    --no-join-shared-ro)
-      JOIN_SHARED_RO=0
+    --no-join-shared-data-group)
+      JOIN_SHARED_DATA_GROUP=0
       shift
       ;;
     --shell)
@@ -106,7 +108,7 @@ run chown -R "${USERNAME}:${USERNAME}" "$USER_DATA"
 run chmod "${USER_DATA_DIR_MODE}" "$USER_DATA"
 run chmod "${USER_HOME_MODE}" "$HOME_DIR"
 
-if [[ "$JOIN_SHARED_RO" -eq 1 ]]; then
+if [[ "$JOIN_SHARED_DATA_GROUP" -eq 1 ]]; then
   run groupadd -f "${SHARED_GROUP}"
   run usermod -aG "${SHARED_GROUP}" "$USERNAME"
 fi
@@ -128,4 +130,4 @@ append_isolation_umask_rc "${USERNAME}" "${USER_RC}" 1
 
 echo "ok: user ${USERNAME} (uid ${UID_VAL})"
 echo "    home ${HOME_DIR} (${USER_HOME_MODE}), data ${USER_DATA} (${USER_DATA_DIR_MODE})"
-[[ "$JOIN_SHARED_RO" -eq 1 ]] && echo "    supplementary group: ${SHARED_GROUP} (${SHARED_DATA_PATH})"
+[[ "$JOIN_SHARED_DATA_GROUP" -eq 1 ]] && echo "    supplementary group: ${SHARED_GROUP} (${SHARED_DATA_PATH})"

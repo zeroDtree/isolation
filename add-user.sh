@@ -1,45 +1,28 @@
 #!/usr/bin/env bash
 # @help-begin
 # One-shot setup wrapper:
-#   1) Initialize host layout under DATA_ROOT
-#   2) Create one isolated user
-#   3) Init shared software tree (doc/en/default.md) and apply templates / ~/shared_software / ~/data -> DATA_ROOT / ~/.cache (see options)
+#   1) Initialize host layout under DATA_ROOT (isolation/init-host.sh)
+#   2) Create one isolated user (isolation/add-isolation-user.sh)
+#   3) Init shared software layout and apply default user env (default-user-environment/*)
 #
 # Usage:
 #   sudo ./add-user.sh USERNAME [options]
 #
-# Env: DATA_ROOT — data root (default from common/config.env, often /data). Must be absolute; override per run, e.g.:
+# Env: DATA_ROOT — absolute data root (default from common/config.env). Example:
 #   sudo DATA_ROOT=/mnt/research-data ./add-user.sh alice
-#   ENABLE_USER_CACHE_LINK (default 1 in common/config.env) — when 1, apply step symlinks ~/.cache into private USER_DATA unless you pass --no-user-cache-link
+#   ENABLE_USER_CACHE_LINK and related keys — see common/config.env and apply-default-user-environment.sh (options below).
 #
-# Options:
-#   --join-shared-ro         add user into shared_ro group (default behavior)
-#   --no-join-shared-ro      do not add user into shared_ro group
-#   --uid UID                explicit UID for useradd
-#   --password PASS          set login password for the new user
-#   --shell PATH             login shell (default from common/config.env)
-#   --dry-run                print commands only (no changes)
-#   --no-default-user-env    skip shared-software init and apply-default-user-environment.sh
-#   --with-default-user-env  run default user env (default; for clarity only)
-#   --no-join-software       pass through: do not add to SOFTWARE_GROUP or ~/shared_software
-#   --no-user-cache-link     do not symlink ~/.cache to private USER_DATA cache dir (passed to apply-default-user-environment.sh)
-#   --with-user-cache-link   allow ~/.cache symlink step (default; for clarity after --no-user-cache-link)
-#   --skip-templates         pass through: do not apply files from TEMPLATE_DIR
-#   --force-templates        pass through: overwrite existing rc files from templates
-#   --skip-existing-templates pass through: keep existing files unchanged (no append)
-#   --install-miniconda      pass through: copy template/shell_utils -> ~/shell_utils, run install_miniconda.sh as user
-#   --install-rootless-docker prepare rootless Docker (checks, linger, shell env); user completes install per docs
-#   -h, --help               show help
+# Wrapper options:
+#   --dry-run                 print commands only (exports DRY_RUN=1 for child scripts)
+#   --no-default-user-env     skip shared-software init and apply-default-user-environment.sh
+#   --with-default-user-env   run default user env (default)
+#   --with-install-rootless-docker  run docker/ubuntu/install-rootless-docker-for-user.sh after setup
+#   --no-install-rootless-docker    skip rootless Docker prep (default)
+#   -h, --help                show help
 #
-# Examples:
-#   sudo ./add-user.sh alice
-#   sudo ./add-user.sh alice --password 'S3cret!'
-#   sudo DATA_ROOT=/mnt/research-data ./add-user.sh bob --no-join-shared-ro
-#   sudo ./add-user.sh carol --uid 2301 --shell /bin/zsh
-#   sudo ./add-user.sh dave --no-default-user-env
-#   sudo ./add-user.sh eve --install-miniconda
-#   sudo ./add-user.sh frank --install-rootless-docker
-#   sudo ./add-user.sh grace --no-user-cache-link
+# If no options are passed, the default behavior is equivalent to:
+#   sudo ./add-user.sh USERNAME --join-shared-data-group --with-default-user-env --with-join-shared-software-group --with-templates --no-force-templates --no-skip-existing-templates --with-user-cache-link --no-install-miniconda --no-install-rootless-docker
+
 # @help-end
 
 set -euo pipefail
@@ -56,6 +39,16 @@ INSTALL_ROOTLESS_DOCKER_SCRIPT="${SCRIPT_DIR}/docker/ubuntu/install-rootless-doc
 
 usage() {
   awk '/^# @help-begin$/{f=1; next} /^# @help-end$/{f=0} f' "$0"
+  printf '%s\n' \
+    '#' \
+    '# Options forwarded to isolation/add-isolation-user.sh:' \
+    '#'
+  awk '/^# @help-options-begin$/{f=1; next} /^# @help-options-end$/{f=0} f' "${ADD_USER_SCRIPT}"
+  printf '%s\n' \
+    '#' \
+    '# Options forwarded to default-user-environment/apply-default-user-environment.sh (when not using --no-default-user-env):' \
+    '#'
+  awk '/^# @help-options-begin$/{f=1; next} /^# @help-options-end$/{f=0} f' "${APPLY_DEFAULT_ENV}"
   exit 0
 }
 
@@ -69,38 +62,14 @@ esac
 USERNAME="$1"
 shift
 
-JOIN_SHARED_RO=1
+PASS_ADD_ISOLATION=()
+PASS_APPLY_DEFAULT=()
 DRY_RUN_FLAG=0
-EXPLICIT_UID=""
-LOGIN_PASSWORD=""
-SHELL_PATH=""
 DEFAULT_USER_ENV=1
 INSTALL_ROOTLESS_DOCKER=0
-USER_CACHE_LINK=1
-APPLY_ARGS=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --join-shared-ro)
-      JOIN_SHARED_RO=1
-      shift
-      ;;
-    --no-join-shared-ro)
-      JOIN_SHARED_RO=0
-      shift
-      ;;
-    --uid)
-      EXPLICIT_UID="${2:?}"
-      shift 2
-      ;;
-    --password)
-      LOGIN_PASSWORD="${2:?}"
-      shift 2
-      ;;
-    --shell)
-      SHELL_PATH="${2:?}"
-      shift 2
-      ;;
     --dry-run)
       DRY_RUN_FLAG=1
       shift
@@ -113,20 +82,26 @@ while [[ $# -gt 0 ]]; do
       DEFAULT_USER_ENV=1
       shift
       ;;
-    --install-rootless-docker)
+    --with-install-rootless-docker)
       INSTALL_ROOTLESS_DOCKER=1
       shift
       ;;
-    --no-user-cache-link)
-      USER_CACHE_LINK=0
+    --no-install-rootless-docker)
+      INSTALL_ROOTLESS_DOCKER=0
       shift
       ;;
-    --with-user-cache-link)
-      USER_CACHE_LINK=1
+    # Pass through to add-isolation-user.sh
+    --join-shared-data-group|--no-join-shared-data-group)
+      PASS_ADD_ISOLATION+=("$1")
       shift
       ;;
-    --no-join-software|--skip-templates|--force-templates|--skip-existing-templates|--install-miniconda)
-      APPLY_ARGS+=("$1")
+    --uid|--password|--shell)
+      PASS_ADD_ISOLATION+=("$1" "${2:?}")
+      shift 2
+      ;;
+    # Pass through to apply-default-user-environment.sh
+    --no-join-shared-software-group|--with-join-shared-software-group|--skip-templates|--with-templates|--force-templates|--no-force-templates|--skip-existing-templates|--no-skip-existing-templates|--with-install-miniconda|--no-install-miniconda|--no-user-cache-link|--with-user-cache-link)
+      PASS_APPLY_DEFAULT+=("$1")
       shift
       ;;
     -h|--help)
@@ -154,12 +129,6 @@ if [[ "${INSTALL_ROOTLESS_DOCKER}" -eq 1 ]]; then
   [[ -x "${INSTALL_ROOTLESS_DOCKER_SCRIPT}" ]] || { echo "error: missing ${INSTALL_ROOTLESS_DOCKER_SCRIPT}" >&2; exit 1; }
 fi
 
-ADD_ARGS=("${USERNAME}")
-[[ "${JOIN_SHARED_RO}" -eq 1 ]] && ADD_ARGS+=("--join-shared-ro")
-[[ -n "${EXPLICIT_UID}" ]] && ADD_ARGS+=("--uid" "${EXPLICIT_UID}")
-[[ -n "${LOGIN_PASSWORD}" ]] && ADD_ARGS+=("--password" "${LOGIN_PASSWORD}")
-[[ -n "${SHELL_PATH}" ]] && ADD_ARGS+=("--shell" "${SHELL_PATH}")
-
 if [[ "${DRY_RUN_FLAG}" -eq 1 ]]; then
   export DRY_RUN=1
 fi
@@ -175,18 +144,16 @@ DATA_ROOT="${DATA_ROOT}" "${INIT_SCRIPT}"
 
 _S=$((_S + 1))
 echo "[step ${_S}/${_TOTAL}] create isolated user ${USERNAME}"
-DATA_ROOT="${DATA_ROOT}" "${ADD_USER_SCRIPT}" "${ADD_ARGS[@]}"
+DATA_ROOT="${DATA_ROOT}" "${ADD_USER_SCRIPT}" "${USERNAME}" "${PASS_ADD_ISOLATION[@]}"
 
 if [[ "${DEFAULT_USER_ENV}" -eq 1 ]]; then
   _S=$((_S + 1))
-  echo "[step ${_S}/${_TOTAL}] init shared software layout (doc/en/default.md)"
+  echo "[step ${_S}/${_TOTAL}] init shared software layout"
   DATA_ROOT="${DATA_ROOT}" "${INIT_SHARED_SOFTWARE}"
 
   _S=$((_S + 1))
   echo "[step ${_S}/${_TOTAL}] apply default user environment for ${USERNAME}"
-  APPLY_INVOK=("${APPLY_ARGS[@]}")
-  [[ "${USER_CACHE_LINK}" -eq 0 ]] && APPLY_INVOK+=(--no-user-cache-link)
-  DATA_ROOT="${DATA_ROOT}" "${APPLY_DEFAULT_ENV}" "${USERNAME}" "${APPLY_INVOK[@]}"
+  DATA_ROOT="${DATA_ROOT}" "${APPLY_DEFAULT_ENV}" "${USERNAME}" "${PASS_APPLY_DEFAULT[@]}"
 else
   echo "[skip] default user environment (--no-default-user-env)"
 fi

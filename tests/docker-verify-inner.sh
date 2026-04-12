@@ -1,7 +1,15 @@
 #!/usr/bin/env bash
-# Invoked inside Docker as root; workspace mounted at /work.
-# Validates permissions against doc/main.typ and doc/en/default.md (isolation, shared_ro, 3775 sticky).
-# Env: INSTALL_MINICONDA (default 1) — set 0 to skip add-user.sh --install-miniconda and conda checks.
+# @help-begin
+# Internal Docker verify harness: run as root with the repo at /work (normally via tests/docker-verify.sh).
+# No CLI arguments — behavior is driven by environment variables.
+#
+# Env:
+#   USER_A, USER_B, USER_C — test usernames (defaults iso_a / iso_b / iso_c). docker-verify.sh exports A/B/C.
+#   USER_PW, USER_PW_PASS — password test account (defaults iso_pw / TestPw_123!); set here unless exported.
+#   INSTALL_MINICONDA — default 1: add-user.sh --with-install-miniconda for USER_A and conda checks (needs wget/curl in the image).
+#     Values 0, no, false, off (case variants) skip Miniconda install and conda checks.
+# @help-end
+
 set -euo pipefail
 
 USER_A="${USER_A:-iso_a}"
@@ -42,12 +50,12 @@ for u in "${USER_A}" "${USER_B}" "${USER_C}" "${USER_PW}"; do
   id "${u}" &>/dev/null && userdel -r "${u}" 2>/dev/null || true
 done
 
-echo "=== provision ${USER_A} and ${USER_B} (full add-user.sh) ==="
+echo "=== provision ${USER_A} (add-user.sh; optional miniconda) and ${USER_B} (--skip-templates) ==="
 if want_miniconda; then
   echo "    (INSTALL_MINICONDA: install miniconda for ${USER_A})"
-  ./add-user.sh "${USER_A}" --install-miniconda
+  ./add-user.sh "${USER_A}" --with-install-miniconda
 else
-  echo "    (INSTALL_MINICONDA=0: skip --install-miniconda for ${USER_A})"
+  echo "    (INSTALL_MINICONDA=0: skip --with-install-miniconda for ${USER_A})"
   ./add-user.sh "${USER_A}"
 fi
 ./add-user.sh "${USER_B}" --skip-templates
@@ -60,7 +68,7 @@ pw_hash="$(getent shadow "${USER_PW}" | cut -d: -f2)"
   fail "${USER_PW} password should be set, got locked marker: ${pw_hash}"
 ok "user password is set for ${USER_PW} (shadow entry is not locked)"
 
-echo "=== doc/main.typ: /data and layout ==="
+echo "=== DATA_ROOT and SHARED_DATA_PATH layout ==="
 [[ "$(stat -c '%a' /data)" == "755" ]] || fail "/data mode want 755 got $(stat -c '%a' /data)"
 ok "/data mode 755 (root:root)"
 
@@ -70,10 +78,10 @@ perm_shared="$(stat -c '%A' "${SHARED_DATA_PATH}")"
 [[ "${perm_shared}" == *s* ]] || fail "${SHARED_DATA_PATH} setgid bit (s) not shown in ${perm_shared}"
 ok "${SHARED_DATA_PATH} mode 3775 (sticky + setgid)"
 
-[[ "$(stat -c '%U:%G' "${SHARED_DATA_PATH}")" == "root:shared_ro" ]] || fail "${SHARED_DATA_PATH} owner want root:shared_ro"
-ok "${SHARED_DATA_PATH} group shared_ro"
+[[ "$(stat -c '%U:%G' "${SHARED_DATA_PATH}")" == "root:shared_data" ]] || fail "${SHARED_DATA_PATH} owner want root:shared_data"
+ok "${SHARED_DATA_PATH} group shared_data"
 
-echo "=== doc/main.typ: home and private data 700, cross-user deny ==="
+echo "=== home and per-user private data (700), cross-user deny ==="
 for u in "${USER_A}" "${USER_B}"; do
   [[ "$(stat -c '%a' "/home/${u}")" == "700" ]] || fail "/home/${u} mode want 700"
   [[ "$(stat -c '%a' "/data/${u}_data")" == "700" ]] || fail "/data/${u}_data mode want 700"
@@ -90,7 +98,7 @@ expect_fail "${USER_A} cannot read ${USER_B} file in home" \
 expect_fail "${USER_A} cannot list ${USER_B} private data dir" \
   as_user "${USER_A}" ls "/data/${USER_B}_data" 2>/dev/null
 
-echo "=== doc/en/default.md: /data/shared_software 3775 (setgid + sticky) ==="
+echo "=== SOFTWARE_ROOT (shared_software) 3775 (setgid + sticky) ==="
 sw="/data/shared_software"
 [[ "$(stat -c '%a' "${sw}")" == "3775" ]] || fail "${sw} mode want 3775 got $(stat -c '%a' "${sw}")"
 # Sticky and setgid bits (stat %a four-digit octal on GNU stat)
@@ -106,7 +114,7 @@ for u in "${USER_A}" "${USER_B}"; do
 done
 ok "both users in software group"
 
-echo "=== doc/en/default.md: sticky — cannot unlink peer file; can read ==="
+echo "=== shared_software sticky — cannot unlink peer file; can read ==="
 as_user "${USER_A}" touch "${sw}/file_by_${USER_A}"
 as_user "${USER_A}" chmod 664 "${sw}/file_by_${USER_A}" 2>/dev/null || true
 
@@ -165,14 +173,14 @@ expect_fail "fix script rejects /tmp" \
 
 echo "=== user without software: cannot create in shared_software ==="
 useradd -m -s /bin/bash "${USER_C}" 2>/dev/null || true
-usermod -aG shared_ro "${USER_C}" || true
+usermod -aG shared_data "${USER_C}" || true
 # not in group software
 id "${USER_C}" | grep -q software && fail "${USER_C} should not be in software for this test" || true
 
 expect_fail "${USER_C} (no software) cannot create in ${sw}" \
   as_user "${USER_C}" touch "${sw}/by_${USER_C}" 2>/dev/null
 
-echo "=== doc/en/default.md: ~/${USER_SOFTWARE_LINK_NAME} symlink ==="
+echo "=== ~/${USER_SOFTWARE_LINK_NAME} -> SOFTWARE_ROOT ==="
 for u in "${USER_A}" "${USER_B}"; do
   link="/home/${u}/${USER_SOFTWARE_LINK_NAME}"
   [[ -L "${link}" ]] || fail "${link} not symlink"
@@ -181,7 +189,7 @@ for u in "${USER_A}" "${USER_B}"; do
 done
 ok "~/${USER_SOFTWARE_LINK_NAME} -> ${sw}, owned by user"
 
-echo "=== doc/en/default.md: ~/${USER_DATA_ROOT_LINK_NAME} -> DATA_ROOT ==="
+echo "=== ~/${USER_DATA_ROOT_LINK_NAME} -> DATA_ROOT ==="
 for u in "${USER_A}" "${USER_B}"; do
   dr_link="/home/${u}/${USER_DATA_ROOT_LINK_NAME}"
   [[ -L "${dr_link}" ]] || fail "${dr_link} not symlink"
@@ -190,7 +198,7 @@ for u in "${USER_A}" "${USER_B}"; do
 done
 ok "~/${USER_DATA_ROOT_LINK_NAME} -> ${DATA_ROOT}, owned by user"
 
-echo "=== doc/en/default.md: ~/.cache -> USER_DATA/${USER_CACHE_BACKING_NAME} ==="
+echo "=== ~/.cache -> USER_DATA/${USER_CACHE_BACKING_NAME} ==="
 for u in "${USER_A}" "${USER_B}"; do
   cl="/home/${u}/.cache"
   ud="${DATA_ROOT}/${USER_DATA_PREFIX}${u}${USER_DATA_SUFFIX}"
@@ -202,7 +210,7 @@ done
 ok "~/.cache -> USER_DATA/${USER_CACHE_BACKING_NAME}, owned by user"
 
 if want_miniconda; then
-  echo "=== miniconda: --install-miniconda for ${USER_A} ==="
+  echo "=== miniconda: --with-install-miniconda for ${USER_A} ==="
   as_user "${USER_A}" test -x "/home/${USER_A}/shell_utils/install_miniconda.sh" || \
     fail "~/shell_utils/install_miniconda.sh missing or not executable for ${USER_A}"
   mc_root="/home/${USER_A}/miniconda3"
@@ -266,4 +274,4 @@ userdel -r "${USER_A}" 2>/dev/null || true
 userdel -r "${USER_B}" 2>/dev/null || true
 userdel -r "${USER_PW}" 2>/dev/null || true
 
-echo "=== all permission checks passed (add-user.md + default.md) ==="
+echo "=== all checks passed ==="
