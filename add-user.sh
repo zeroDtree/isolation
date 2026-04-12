@@ -3,13 +3,14 @@
 # One-shot setup wrapper:
 #   1) Initialize host layout under DATA_ROOT
 #   2) Create one isolated user
-#   3) Init shared software tree (doc/en/default.md) and apply templates / ~/shared_software / ~/data -> DATA_ROOT
+#   3) Init shared software tree (doc/en/default.md) and apply templates / ~/shared_software / ~/data -> DATA_ROOT / ~/.cache (see options)
 #
 # Usage:
 #   sudo ./add-user.sh USERNAME [options]
 #
 # Env: DATA_ROOT — data root (default from common/config.env, often /data). Must be absolute; override per run, e.g.:
 #   sudo DATA_ROOT=/mnt/research-data ./add-user.sh alice
+#   ENABLE_USER_CACHE_LINK (default 1 in common/config.env) — when 1, apply step symlinks ~/.cache into private USER_DATA unless you pass --no-user-cache-link
 #
 # Options:
 #   --join-shared-ro         add user into shared_ro group (default behavior)
@@ -21,6 +22,8 @@
 #   --no-default-user-env    skip shared-software init and apply-default-user-environment.sh
 #   --with-default-user-env  run default user env (default; for clarity only)
 #   --no-join-software       pass through: do not add to SOFTWARE_GROUP or ~/shared_software
+#   --no-user-cache-link     do not symlink ~/.cache to private USER_DATA cache dir (passed to apply-default-user-environment.sh)
+#   --with-user-cache-link   allow ~/.cache symlink step (default; for clarity after --no-user-cache-link)
 #   --skip-templates         pass through: do not apply files from TEMPLATE_DIR
 #   --force-templates        pass through: overwrite existing rc files from templates
 #   --skip-existing-templates pass through: keep existing files unchanged (no append)
@@ -36,6 +39,7 @@
 #   sudo ./add-user.sh dave --no-default-user-env
 #   sudo ./add-user.sh eve --install-miniconda
 #   sudo ./add-user.sh frank --install-rootless-docker
+#   sudo ./add-user.sh grace --no-user-cache-link
 # @help-end
 
 set -euo pipefail
@@ -72,6 +76,7 @@ LOGIN_PASSWORD=""
 SHELL_PATH=""
 DEFAULT_USER_ENV=1
 INSTALL_ROOTLESS_DOCKER=0
+USER_CACHE_LINK=1
 APPLY_ARGS=()
 
 while [[ $# -gt 0 ]]; do
@@ -110,6 +115,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --install-rootless-docker)
       INSTALL_ROOTLESS_DOCKER=1
+      shift
+      ;;
+    --no-user-cache-link)
+      USER_CACHE_LINK=0
+      shift
+      ;;
+    --with-user-cache-link)
+      USER_CACHE_LINK=1
       shift
       ;;
     --no-join-software|--skip-templates|--force-templates|--skip-existing-templates|--install-miniconda)
@@ -171,7 +184,9 @@ if [[ "${DEFAULT_USER_ENV}" -eq 1 ]]; then
 
   _S=$((_S + 1))
   echo "[step ${_S}/${_TOTAL}] apply default user environment for ${USERNAME}"
-  DATA_ROOT="${DATA_ROOT}" "${APPLY_DEFAULT_ENV}" "${USERNAME}" "${APPLY_ARGS[@]}"
+  APPLY_INVOK=("${APPLY_ARGS[@]}")
+  [[ "${USER_CACHE_LINK}" -eq 0 ]] && APPLY_INVOK+=(--no-user-cache-link)
+  DATA_ROOT="${DATA_ROOT}" "${APPLY_DEFAULT_ENV}" "${USERNAME}" "${APPLY_INVOK[@]}"
 else
   echo "[skip] default user environment (--no-default-user-env)"
 fi

@@ -190,6 +190,17 @@ for u in "${USER_A}" "${USER_B}"; do
 done
 ok "~/${USER_DATA_ROOT_LINK_NAME} -> ${DATA_ROOT}, owned by user"
 
+echo "=== doc/en/default.md: ~/.cache -> USER_DATA/${USER_CACHE_BACKING_NAME} ==="
+for u in "${USER_A}" "${USER_B}"; do
+  cl="/home/${u}/.cache"
+  ud="${DATA_ROOT}/${USER_DATA_PREFIX}${u}${USER_DATA_SUFFIX}"
+  want="$(readlink -f "${ud}/${USER_CACHE_BACKING_NAME}")"
+  [[ -L "${cl}" ]] || fail "${cl} not symlink"
+  [[ "$(readlink -f "${cl}")" == "${want}" ]] || fail "~/.cache symlink target for ${u}"
+  [[ "$(stat -c '%U:%G' "${cl}")" == "${u}:${u}" ]] || fail "~/.cache symlink lchown for ${u}"
+done
+ok "~/.cache -> USER_DATA/${USER_CACHE_BACKING_NAME}, owned by user"
+
 if want_miniconda; then
   echo "=== miniconda: --install-miniconda for ${USER_A} ==="
   as_user "${USER_A}" test -x "/home/${USER_A}/shell_utils/install_miniconda.sh" || \
