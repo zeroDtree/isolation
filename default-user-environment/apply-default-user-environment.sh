@@ -125,7 +125,7 @@ if ! id -u "$USERNAME" &>/dev/null; then
   die "user does not exist: $USERNAME (create with isolation/add-isolation-user.sh first)"
 fi
 
-HOME_DIR="/home/${USERNAME}"
+HOME_DIR="$(passwd_home_for_user "$USERNAME")"
 
 if [[ "${ENABLE_SOFTWARE_AREA}" == "1" ]] && [[ "$JOIN_SOFTWARE" -eq 1 ]]; then
   run groupadd -f "${SOFTWARE_GROUP}"
@@ -321,17 +321,7 @@ if [[ "$INSTALL_MINICONDA" -eq 1 ]]; then
   run cp -aL "${SU_SRC}" "${SU_DST}"
   run chown -R "${USERNAME}:${USERNAME}" "${SU_DST}"
   run chmod +x "${MC_DST}"
-  if [[ "${DRY_RUN}" == 1 ]]; then
-    if command -v runuser >/dev/null 2>&1; then
-      echo "[dry-run] runuser -u ${USERNAME} -- bash ${MC_DST}"
-    elif command -v sudo >/dev/null 2>&1; then
-      echo "[dry-run] sudo -u ${USERNAME} -- bash ${MC_DST}"
-    else
-      die "need runuser or sudo to run commands as another user"
-    fi
-  else
-    as_user "$USERNAME" bash "$MC_DST"
-  fi
+  as_user_in_home "$USERNAME" bash "$MC_DST"
 fi
 
 echo "ok: default user environment applied for ${USERNAME}"
