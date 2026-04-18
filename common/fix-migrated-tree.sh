@@ -24,12 +24,15 @@ _fix_migrated_dry_run_chmods() {
   while IFS= read -r -d '' d; do
     printf '[dry-run] chmod 2755 %q\n' "$d"
   done < <(find "$tree" -type d -print0 2>/dev/null)
+  # Use +111 (any execute bit). Do not use -111 (all u/g/o execute): 750/700 binaries
+  # would be misclassified as non-executable and get chmod 644. Use +111 (not /111)
+  # so BSD/macOS find(1) matches GNU behavior (/111 is GNU-only).
   while IFS= read -r -d '' f; do
     printf '[dry-run] chmod 644 %q\n' "$f"
-  done < <(find "$tree" -type f ! -perm -111 -print0 2>/dev/null)
+  done < <(find "$tree" -type f ! -perm +111 -print0 2>/dev/null)
   while IFS= read -r -d '' f; do
     printf '[dry-run] chmod 755 %q\n' "$f"
-  done < <(find "$tree" -type f -perm -111 -print0 2>/dev/null)
+  done < <(find "$tree" -type f -perm +111 -print0 2>/dev/null)
 }
 
 # fix_migrated_tree_usage
@@ -111,8 +114,8 @@ fix_migrated_tree_main() {
         _fix_migrated_dry_run_chmods "$p"
       else
         find "$p" -type d -exec chmod 2755 {} +
-        find "$p" -type f ! -perm -111 -exec chmod 644 {} +
-        find "$p" -type f -perm -111 -exec chmod 755 {} +
+        find "$p" -type f ! -perm +111 -exec chmod 644 {} +
+        find "$p" -type f -perm +111 -exec chmod 755 {} +
       fi
     else
       if [[ "${DRY_RUN:-}" == 1 ]]; then
