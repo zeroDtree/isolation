@@ -36,6 +36,16 @@ run() {
   fi
 }
 
+# Resolve passwd(5) home directory for USER (field 6). Fails if missing or "/".
+passwd_home_for_user() {
+  local u="${1:?}"
+  local line h
+  line="$(getent passwd "$u" 2>/dev/null)" || die "cannot resolve passwd entry for user: $u"
+  h="$(printf '%s\n' "$line" | cut -d: -f6)"
+  [[ -n "$h" && "$h" != "/" ]] || die "invalid home in passwd for user $u: ${h:-<empty>}"
+  printf '%s\n' "$h"
+}
+
 # Run a command as USER (runuser if present, else sudo -u). Honors DRY_RUN via run().
 as_user() {
   local u="${1:?}"
@@ -44,6 +54,24 @@ as_user() {
     run runuser -u "$u" -- "$@"
   elif command -v sudo >/dev/null 2>&1; then
     run sudo -u "$u" -- "$@"
+  else
+    die "need runuser or sudo to run commands as another user"
+  fi
+}
+
+# Run COMMAND as USER with HOME / USER / LOGNAME set from passwd and cwd = that home.
+# Avoids inheriting root's cwd (e.g. admin's private repo dir) which breaks conda multiprocessing.
+# Usage: as_user_in_home USER cmd [args...]
+as_user_in_home() {
+  local u="${1:?}"
+  shift
+  [[ $# -ge 1 ]] || die "as_user_in_home: need command"
+  local home
+  home="$(passwd_home_for_user "$u")"
+  if command -v runuser >/dev/null 2>&1; then
+    run runuser -u "$u" -- env HOME="$home" USER="$u" LOGNAME="$u" bash -c 'cd "$HOME" || exit 1; exec "$@"' bash "$@"
+  elif command -v sudo >/dev/null 2>&1; then
+    run sudo -u "$u" -H -- env HOME="$home" USER="$u" LOGNAME="$u" bash -c 'cd "$HOME" || exit 1; exec "$@"' bash "$@"
   else
     die "need runuser or sudo to run commands as another user"
   fi

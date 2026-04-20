@@ -100,7 +100,12 @@ if [[ "${DRY_RUN}" == 1 ]]; then
 else
   UID_VAL="$(get_user_uid "$USERNAME")"
 fi
-HOME_DIR="/home/${USERNAME}"
+# Dry-run does not create the account; getent would fail — useradd -m default is /home/NAME.
+if [[ "${DRY_RUN}" == 1 ]]; then
+  HOME_DIR="/home/${USERNAME}"
+else
+  HOME_DIR="$(passwd_home_for_user "$USERNAME")"
+fi
 USER_DATA="${DATA_ROOT}/${USER_DATA_PREFIX}${USERNAME}${USER_DATA_SUFFIX}"
 
 run mkdir -p "$USER_DATA"

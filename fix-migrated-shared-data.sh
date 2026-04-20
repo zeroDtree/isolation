@@ -9,7 +9,7 @@
 #
 # Options:
 #   --normalize-perms   Also chmod directories to 2755 (setgid + rwxr-xr-x); files
-#                       without +x -> 644, files with any +x -> 755 (644 pass first).
+#                       without any execute bit -> 644, with any execute bit -> 755.
 #   -h, --help          show this help
 #
 # Default (without --normalize-perms): chgrp -R and chmod g+s on directories only;

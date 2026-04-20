@@ -67,6 +67,7 @@ PASS_APPLY_DEFAULT=()
 DRY_RUN_FLAG=0
 DEFAULT_USER_ENV=1
 INSTALL_ROOTLESS_DOCKER=0
+USER_ALREADY_EXISTS=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -133,6 +134,10 @@ if [[ "${DRY_RUN_FLAG}" -eq 1 ]]; then
   export DRY_RUN=1
 fi
 
+if id -u "${USERNAME}" >/dev/null 2>&1; then
+  USER_ALREADY_EXISTS=1
+fi
+
 _TOTAL=2
 [[ "${DEFAULT_USER_ENV}" -eq 1 ]] && _TOTAL=$((_TOTAL + 2))
 [[ "${INSTALL_ROOTLESS_DOCKER}" -eq 1 ]] && _TOTAL=$((_TOTAL + 1))
@@ -143,8 +148,12 @@ echo "[step ${_S}/${_TOTAL}] init host layout at DATA_ROOT=${DATA_ROOT}"
 DATA_ROOT="${DATA_ROOT}" "${INIT_SCRIPT}"
 
 _S=$((_S + 1))
-echo "[step ${_S}/${_TOTAL}] create isolated user ${USERNAME}"
-DATA_ROOT="${DATA_ROOT}" "${ADD_USER_SCRIPT}" "${USERNAME}" "${PASS_ADD_ISOLATION[@]}"
+if [[ "${USER_ALREADY_EXISTS}" -eq 1 ]]; then
+  echo "[step ${_S}/${_TOTAL}] skip create isolated user ${USERNAME} (already exists)"
+else
+  echo "[step ${_S}/${_TOTAL}] create isolated user ${USERNAME}"
+  DATA_ROOT="${DATA_ROOT}" "${ADD_USER_SCRIPT}" "${USERNAME}" "${PASS_ADD_ISOLATION[@]}"
+fi
 
 if [[ "${DEFAULT_USER_ENV}" -eq 1 ]]; then
   _S=$((_S + 1))

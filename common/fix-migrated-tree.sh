@@ -18,18 +18,47 @@ _fix_migrated_validate_path() {
   _fix_migrated_under_target_root "$c" || die "path must be under ${FIX_MIGRATED_LABEL}=${FIX_MIGRATED_TARGET_ROOT} (resolved: ${c})"
 }
 
+# Print a single -perm MODE string for "any u/g/o execute bit" (e.g. /111 or +111).
+# GNU findutils: -perm /111. Newer GNU removed +MODE; BSD find rejects /111 but accepts +111.
+_fix_migrated_detect_find_perm_any_exec() {
+  local d f
+  d="$(mktemp -d)" || return 1
+  f="${d}/t"
+  touch "$f" || {
+    rm -rf "$d"
+    return 1
+  }
+  chmod 700 "$f" || {
+    rm -rf "$d"
+    return 1
+  }
+  if [[ -n "$(find "$f" -maxdepth 0 -type f -perm /111 -print 2>/dev/null)" ]]; then
+    printf '/111\n'
+  elif [[ -n "$(find "$f" -maxdepth 0 -type f -perm +111 -print 2>/dev/null)" ]]; then
+    printf '+111\n'
+  else
+    rm -rf "$d"
+    return 1
+  fi
+  rm -rf "$d"
+}
+
+# Set by fix_migrated_tree_main when --normalize-perms (any execute bit, not -111 all-three).
+_FIX_MIGRATED_FIND_PERM_ANY=""
+
 _fix_migrated_dry_run_chmods() {
   local tree="$1"
   local d f
+  local pe="${_FIX_MIGRATED_FIND_PERM_ANY:?internal error: _FIX_MIGRATED_FIND_PERM_ANY not set}"
   while IFS= read -r -d '' d; do
     printf '[dry-run] chmod 2755 %q\n' "$d"
   done < <(find "$tree" -type d -print0 2>/dev/null)
   while IFS= read -r -d '' f; do
     printf '[dry-run] chmod 644 %q\n' "$f"
-  done < <(find "$tree" -type f ! -perm -111 -print0 2>/dev/null)
+  done < <(find "$tree" -type f ! -perm "${pe}" -print0 2>/dev/null)
   while IFS= read -r -d '' f; do
     printf '[dry-run] chmod 755 %q\n' "$f"
-  done < <(find "$tree" -type f -perm -111 -print0 2>/dev/null)
+  done < <(find "$tree" -type f -perm "${pe}" -print0 2>/dev/null)
 }
 
 # fix_migrated_tree_usage
@@ -102,6 +131,12 @@ fix_migrated_tree_main() {
     _fix_migrated_validate_path "$arg"
   done
 
+  _FIX_MIGRATED_FIND_PERM_ANY=""
+  if [[ "${NORMALIZE_PERMS}" -eq 1 ]]; then
+    _FIX_MIGRATED_FIND_PERM_ANY="$(_fix_migrated_detect_find_perm_any_exec)" ||
+      die "find(1) does not support -perm /111 or +111 (any execute bit); cannot use --normalize-perms"
+  fi
+
   for arg in "${PATHS[@]}"; do
     p="$(readlink -f "$arg")"
     echo "fixing: ${p}"
@@ -111,8 +146,8 @@ fix_migrated_tree_main() {
         _fix_migrated_dry_run_chmods "$p"
       else
         find "$p" -type d -exec chmod 2755 {} +
-        find "$p" -type f ! -perm -111 -exec chmod 644 {} +
-        find "$p" -type f -perm -111 -exec chmod 755 {} +
+        find "$p" -type f ! -perm "${_FIX_MIGRATED_FIND_PERM_ANY}" -exec chmod 644 {} +
+        find "$p" -type f -perm "${_FIX_MIGRATED_FIND_PERM_ANY}" -exec chmod 755 {} +
       fi
     else
       if [[ "${DRY_RUN:-}" == 1 ]]; then

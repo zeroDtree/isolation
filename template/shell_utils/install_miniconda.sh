@@ -1,6 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [[ -z "${HOME:-}" ]]; then
+  echo "error: HOME is not set (run install_miniconda.sh as the target user with a valid login home)" >&2
+  exit 1
+fi
+if [[ ! -d "$HOME" ]]; then
+  echo "error: HOME (${HOME}) is not a directory" >&2
+  exit 1
+fi
+if [[ ! -w "$HOME" ]]; then
+  echo "error: HOME (${HOME}) is not writable by current user (uid=$(id -u), user=$(id -un))" >&2
+  exit 1
+fi
+
 mc_root="${HOME}/miniconda3"
 installer="${mc_root}/miniconda.sh"
 

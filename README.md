@@ -25,6 +25,8 @@ sudo DATA_ROOT=/path/to/data_root bash add-user.sh USERNAME [options]
 
 `DATA_ROOT` comes from [`common/config.env`](common/config.env) (default `/data`) or override per run. It must be an **absolute** path.
 
+If the **Linux user already exists**, [`add-user.sh`](add-user.sh) does not call [`isolation/add-isolation-user.sh`](isolation/add-isolation-user.sh); the rest of the run proceeds as usual (init host, then default environment and optional rootless Docker prep). Options meant only for user creation (for example `--password`) have no effect in that case.
+
 **Examples**
 
 ```bash
@@ -34,14 +36,14 @@ sudo DATA_ROOT=/data bash add-user.sh alice --password 'your-password' --with-in
 **What it does (typical run)**
 
 1. **Host layout** — [`isolation/init-host.sh`](isolation/init-host.sh): ensures `DATA_ROOT`, shared dataset directory (default `${DATA_ROOT}/shared_data`), and `SHARED_GROUP` (default `shared_data`) plus mode per config.
-2. **User** — [`isolation/add-isolation-user.sh`](isolation/add-isolation-user.sh): creates the account, home under `/home/<username>`, and private data at `${DATA_ROOT}/<username>_data` (suffix configurable via `USER_DATA_SUFFIX`; optional prefix via `USER_DATA_PREFIX`).
+2. **User** — [`isolation/add-isolation-user.sh`](isolation/add-isolation-user.sh): creates the account, home under `/home/<username>`, and private data at `${DATA_ROOT}/<username>_data` (suffix configurable via `USER_DATA_SUFFIX`; optional prefix via `USER_DATA_PREFIX`). If the account already exists, this step is skipped and the script continues.
 3. **Default environment** (unless `--no-default-user-env`) — runs shared software layout init ([`default-user-environment/init-shared-software-layout.sh`](default-user-environment/init-shared-software-layout.sh); no-op when `ENABLE_SOFTWARE_AREA` is not `1`) and applies env for that user ([`default-user-environment/apply-default-user-environment.sh`](default-user-environment/apply-default-user-environment.sh)):
    - **`~/shared_software`** (default link name `USER_SOFTWARE_LINK_NAME`) → collaborative tree on the host (`SOFTWARE_ROOT`, default `${DATA_ROOT}/shared_software`) when **`ENABLE_SOFTWARE_AREA=1`** and you do not pass **`--no-join-shared-software-group`** (default is to join).
    - **`~/data`** (default link name `USER_DATA_ROOT_LINK_NAME`) → `DATA_ROOT` when **`ENABLE_DATA_ROOT_LINK=1`**, so shared and per-user `*_data` dirs are reachable from home.
    - **`~/.cache`** → a directory under the per-user private data tree (same `${DATA_ROOT}/<prefix><username><suffix>/…` rule as step 2; backing basename `USER_CACHE_BACKING_NAME`, default `.cache`) when **`ENABLE_USER_CACHE_LINK=1`** and you do not pass **`--no-user-cache-link`** on `add-user.sh` (default is to create the symlink when both config and CLI allow it).
    - **Templates** from `template/`: [`bashrc.sh`](template/bashrc.sh), [`zshrc.sh`](template/zshrc.sh), [`config.fish`](template/config.fish), [`vimrc`](template/vimrc) (or `vimrc.sh` if present). Flags include **`--skip-templates`** / **`--with-templates`**, **`--force-templates`** / **`--no-force-templates`**, **`--skip-existing-templates`** / **`--no-skip-existing-templates`**.
 
-4. **Rootless Docker prep** (only with **`--with-install-rootless-docker`**) — runs [`docker/ubuntu/install-rootless-docker-for-user.sh`](docker/ubuntu/install-rootless-docker-for-user.sh) after user creation. Use **`--no-install-rootless-docker`** to skip explicitly.
+4. **Rootless Docker prep** (only with **`--with-install-rootless-docker`**) — runs [`docker/ubuntu/install-rootless-docker-for-user.sh`](docker/ubuntu/install-rootless-docker-for-user.sh) after the user step. Use **`--no-install-rootless-docker`** to skip explicitly.
 
 Optional flags (see `sudo ./add-user.sh --help` for the full list):
 
