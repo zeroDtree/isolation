@@ -45,13 +45,30 @@ _fix_migrated_detect_find_perm_any_exec() {
 
 # Set by fix_migrated_tree_main when --normalize-perms (any execute bit, not -111 all-three).
 _FIX_MIGRATED_FIND_PERM_ANY=""
+_FIX_MIGRATED_SKIP_DIR_NORMALIZE_ROOTS=()
+
+_fix_migrated_skip_dir_normalize() {
+  local p="$1"
+  local root
+  [[ "${#_FIX_MIGRATED_SKIP_DIR_NORMALIZE_ROOTS[@]}" -gt 0 ]] || return 1
+  for root in "${_FIX_MIGRATED_SKIP_DIR_NORMALIZE_ROOTS[@]}"; do
+    if [[ "$p" == "$root" || "$p" == "$root"/* ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
 
 _fix_migrated_dry_run_chmods() {
   local tree="$1"
   local d f
   local pe="${_FIX_MIGRATED_FIND_PERM_ANY:?internal error: _FIX_MIGRATED_FIND_PERM_ANY not set}"
   while IFS= read -r -d '' d; do
-    printf '[dry-run] chmod 2755 %q\n' "$d"
+    if _fix_migrated_skip_dir_normalize "$d"; then
+      printf '[dry-run] skip chmod 2755 %q (collaborative subtree)\n' "$d"
+    else
+      printf '[dry-run] chmod 2755 %q\n' "$d"
+    fi
   done < <(find "$tree" -type d -print0 2>/dev/null)
   while IFS= read -r -d '' f; do
     printf '[dry-run] chmod 644 %q\n' "$f"
@@ -124,6 +141,14 @@ fix_migrated_tree_main() {
   [[ -d "${FIX_MIGRATED_TARGET_ROOT}" ]] || die "${FIX_MIGRATED_LABEL} is not a directory: ${FIX_MIGRATED_TARGET_ROOT} (run ${FIX_MIGRATED_INIT_HINT})"
 
   _FIX_MIGRATED_TARGET_ROOT_CANON="$(readlink -f "${FIX_MIGRATED_TARGET_ROOT}")"
+  _FIX_MIGRATED_SKIP_DIR_NORMALIZE_ROOTS=()
+  if [[ -n "${SOFTWARE_ROOT:-}" ]] && [[ -d "${SOFTWARE_ROOT}" ]]; then
+    local software_root_canon
+    software_root_canon="$(readlink -f "${SOFTWARE_ROOT}")"
+    if [[ "${_FIX_MIGRATED_TARGET_ROOT_CANON}" == "${software_root_canon}" ]]; then
+      _FIX_MIGRATED_SKIP_DIR_NORMALIZE_ROOTS+=("${_FIX_MIGRATED_TARGET_ROOT_CANON}/cuda")
+    fi
+  fi
 
   run groupadd -f "${FIX_MIGRATED_TARGET_GROUP}"
 
@@ -145,7 +170,17 @@ fix_migrated_tree_main() {
       if [[ "${DRY_RUN:-}" == 1 ]]; then
         _fix_migrated_dry_run_chmods "$p"
       else
-        find "$p" -type d -exec chmod 2755 {} +
+        if _fix_migrated_skip_dir_normalize "$p"; then
+          find "$p" -type d -exec chmod g+s {} +
+        else
+          while IFS= read -r -d '' d; do
+            if _fix_migrated_skip_dir_normalize "$d"; then
+              chmod g+s "$d"
+            else
+              chmod 2755 "$d"
+            fi
+          done < <(find "$p" -type d -print0 2>/dev/null)
+        fi
         find "$p" -type f ! -perm "${_FIX_MIGRATED_FIND_PERM_ANY}" -exec chmod 644 {} +
         find "$p" -type f -perm "${_FIX_MIGRATED_FIND_PERM_ANY}" -exec chmod 755 {} +
       fi

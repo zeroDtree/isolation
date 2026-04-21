@@ -137,6 +137,17 @@ else
   echo "[skip] software group and ~/${USER_SOFTWARE_LINK_NAME} link (ENABLE_SOFTWARE_AREA=${ENABLE_SOFTWARE_AREA}, join=${JOIN_SOFTWARE})"
 fi
 
+if [[ "${ENABLE_SOFTWARE_AREA}" == "1" ]]; then
+  CUDA_SHARED_DIR="${SOFTWARE_ROOT}/cuda"
+  if [[ -e "${CUDA_SHARED_DIR}" ]] && [[ ! -d "${CUDA_SHARED_DIR}" ]]; then
+    die "shared cuda path exists and is not a directory: ${CUDA_SHARED_DIR}"
+  fi
+  # 3775 keeps this directory collaborative for SOFTWARE_GROUP and preserves group on new files.
+  run mkdir -p "${CUDA_SHARED_DIR}"
+  run chown "root:${SOFTWARE_GROUP}" "${CUDA_SHARED_DIR}"
+  run chmod 3775 "${CUDA_SHARED_DIR}"
+fi
+
 if [[ "${ENABLE_DATA_ROOT_LINK}" == "1" ]]; then
   DATA_ROOT_LINK_PATH="${HOME_DIR}/${USER_DATA_ROOT_LINK_NAME}"
   run ln -sfn "${DATA_ROOT}" "${DATA_ROOT_LINK_PATH}"
