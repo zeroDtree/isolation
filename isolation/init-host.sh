@@ -21,4 +21,5 @@ run chown "root:${SHARED_GROUP}" "${SHARED_DATA_PATH}"
 run chmod "${SHARED_DATA_MODE}" "${SHARED_DATA_PATH}"
 
 echo "ok: ${SHARED_DATA_PATH} ready (group ${SHARED_GROUP}, mode ${SHARED_DATA_MODE})"
-echo "    add users with isolation/add-isolation-user.sh or add-user.sh; they join ${SHARED_GROUP} by default (use --no-join-shared-data-group to skip)"
+echo "    create users with isolation/add-isolation-user.sh; then run default-user-environment/apply-default-user-environment.sh"
+echo "    (or use add-user.sh) to join ${SHARED_GROUP} by default (use --no-join-shared-data-group to skip)"

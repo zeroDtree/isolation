@@ -9,6 +9,8 @@
 #
 # Options:
 # @help-options-begin
+#   --no-join-shared-data-group   do not add user to SHARED_GROUP
+#   --with-join-shared-data-group add user to SHARED_GROUP (default; clarity only)
 #   --no-join-shared-software-group  do not add user to SOFTWARE_GROUP or create ~/shared_software link
 #   --with-join-shared-software-group add to SOFTWARE_GROUP and ~/shared_software (default; clarity only)
 #   --no-user-cache-link   do not symlink ~/.cache to private USER_DATA cache directory
@@ -38,6 +40,7 @@ source "${SCRIPT_DIR}/../common/config.env"
 source "${SCRIPT_DIR}/../common/utils.sh"
 
 JOIN_SOFTWARE=1
+JOIN_SHARED_DATA_GROUP=1
 JOIN_USER_CACHE_LINK=1
 SKIP_TEMPLATES=0
 FORCE_TEMPLATES=0
@@ -57,6 +60,14 @@ shift || true
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --no-join-shared-data-group)
+      JOIN_SHARED_DATA_GROUP=0
+      shift
+      ;;
+    --with-join-shared-data-group)
+      JOIN_SHARED_DATA_GROUP=1
+      shift
+      ;;
     --no-join-shared-software-group)
       JOIN_SOFTWARE=0
       shift
@@ -126,6 +137,18 @@ if ! id -u "$USERNAME" &>/dev/null; then
 fi
 
 HOME_DIR="$(passwd_home_for_user "$USERNAME")"
+USER_DATA="${DATA_ROOT}/${USER_DATA_PREFIX}${USERNAME}${USER_DATA_SUFFIX}"
+
+if [[ "$JOIN_SHARED_DATA_GROUP" -eq 1 ]]; then
+  run groupadd -f "${SHARED_GROUP}"
+  run usermod -aG "${SHARED_GROUP}" "$USERNAME"
+else
+  echo "[skip] shared-data supplementary group ${SHARED_GROUP} (--no-join-shared-data-group)"
+fi
+
+run mkdir -p "${USER_DATA}"
+run chown -R "${USERNAME}:${USERNAME}" "${USER_DATA}"
+run chmod "${USER_DATA_DIR_MODE}" "${USER_DATA}"
 
 if [[ "${ENABLE_SOFTWARE_AREA}" == "1" ]] && [[ "$JOIN_SOFTWARE" -eq 1 ]]; then
   run groupadd -f "${SOFTWARE_GROUP}"
@@ -157,7 +180,6 @@ else
 fi
 
 if [[ "${ENABLE_USER_CACHE_LINK}" == "1" ]] && [[ "${JOIN_USER_CACHE_LINK}" -eq 1 ]]; then
-  USER_DATA="${DATA_ROOT}/${USER_DATA_PREFIX}${USERNAME}${USER_DATA_SUFFIX}"
   USER_CACHE_DIR="${USER_DATA}/${USER_CACHE_BACKING_NAME}"
   CACHE_LINK="${HOME_DIR}/.cache"
 

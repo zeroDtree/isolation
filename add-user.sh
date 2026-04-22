@@ -92,16 +92,12 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     # Pass through to add-isolation-user.sh
-    --join-shared-data-group|--no-join-shared-data-group)
-      PASS_ADD_ISOLATION+=("$1")
-      shift
-      ;;
     --uid|--password|--shell)
       PASS_ADD_ISOLATION+=("$1" "${2:?}")
       shift 2
       ;;
     # Pass through to apply-default-user-environment.sh
-    --no-join-shared-software-group|--with-join-shared-software-group|--skip-templates|--with-templates|--force-templates|--no-force-templates|--skip-existing-templates|--no-skip-existing-templates|--with-install-miniconda|--no-install-miniconda|--no-user-cache-link|--with-user-cache-link)
+    --join-shared-data-group|--no-join-shared-data-group|--no-join-shared-software-group|--with-join-shared-software-group|--skip-templates|--with-templates|--force-templates|--no-force-templates|--skip-existing-templates|--no-skip-existing-templates|--with-install-miniconda|--no-install-miniconda|--no-user-cache-link|--with-user-cache-link)
       PASS_APPLY_DEFAULT+=("$1")
       shift
       ;;
