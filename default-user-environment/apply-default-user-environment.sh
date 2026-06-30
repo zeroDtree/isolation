@@ -2,7 +2,7 @@
 # @help-begin
 # Apply doc/en/default.md to an existing user: software group, ~/shared_software symlink, ~/USER_DATA_ROOT_LINK_NAME -> DATA_ROOT,
 # optional ~/.cache symlink into per-user private data (ENABLE_USER_CACHE_LINK, USER_CACHE_BACKING_NAME),
-# shell templates, optional Miniconda. Appends umask hint to ~/.bashrc, ~/.zshrc, ~/.config/fish/config.fish when present.
+# shell templates, ~/shell_utils (install_miniconda.sh), optional Miniconda run. Appends umask hint to ~/.bashrc, ~/.zshrc, ~/.config/fish/config.fish when present.
 #
 # Usage:
 #   sudo ./apply-default-user-environment.sh USERNAME [options]
@@ -23,8 +23,8 @@
 #   --no-skip-existing-templates default merge/replace behavior (clarity after --skip-existing-templates)
 #                             default: append if no marker, else replace isolation template block(s)
 #   --install-miniconda    same as --with-install-miniconda
-#   --with-install-miniconda copy template/shell_utils -> ~/shell_utils, run install_miniconda.sh as the user (needs network)
-#   --no-install-miniconda skip Miniconda install (default)
+#   --with-install-miniconda run ~/shell_utils/install_miniconda.sh as the user after copy (needs network)
+#   --no-install-miniconda copy shell_utils only, do not run installer (default)
 #   -h, --help             show help
 # @help-options-end
 #
@@ -341,19 +341,20 @@ append_isolation_umask_rc "${USERNAME}" "${HOME_DIR}/.bashrc" 0
 append_isolation_umask_rc "${USERNAME}" "${HOME_DIR}/.zshrc" 0
 append_isolation_umask_rc "${USERNAME}" "${HOME_DIR}/.config/fish/config.fish" 0
 
+SU_SRC="${TEMPLATE_DIR}/shell_utils"
+SU_DST="${HOME_DIR}/shell_utils"
+MC_DST="${SU_DST}/install_miniconda.sh"
+if [[ ! -d "$SU_SRC" ]] || [[ ! -f "${SU_SRC}/install_miniconda.sh" ]]; then
+  die "template shell_utils missing or incomplete: ${SU_SRC} (need install_miniconda.sh)"
+fi
+run mkdir -p "${HOME_DIR}"
+run rm -rf "${SU_DST}"
+# Follow symlinks so ~/shell_utils is real files (symlinks into the repo break for other users).
+run cp -aL "${SU_SRC}" "${SU_DST}"
+run chown -R "${USERNAME}:${USERNAME}" "${SU_DST}"
+run chmod +x "${MC_DST}"
+
 if [[ "$INSTALL_MINICONDA" -eq 1 ]]; then
-  SU_SRC="${TEMPLATE_DIR}/shell_utils"
-  SU_DST="${HOME_DIR}/shell_utils"
-  MC_DST="${SU_DST}/install_miniconda.sh"
-  if [[ ! -d "$SU_SRC" ]] || [[ ! -f "${SU_SRC}/install_miniconda.sh" ]]; then
-    die "template shell_utils missing or incomplete: ${SU_SRC} (need install_miniconda.sh)"
-  fi
-  run mkdir -p "${HOME_DIR}"
-  run rm -rf "${SU_DST}"
-  # Follow symlinks so ~/shell_utils is real files (symlinks into the repo break for other users).
-  run cp -aL "${SU_SRC}" "${SU_DST}"
-  run chown -R "${USERNAME}:${USERNAME}" "${SU_DST}"
-  run chmod +x "${MC_DST}"
   as_user_in_home "$USERNAME" bash "$MC_DST"
 fi
 

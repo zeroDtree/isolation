@@ -223,7 +223,12 @@ if want_miniconda; then
     fail ".condarc should contain auto_activate: false"
   ok "miniconda installed and configured for ${USER_A}"
 else
-  echo "=== miniconda: skipped (INSTALL_MINICONDA=0) ==="
+  echo "=== miniconda: script copied, install skipped (INSTALL_MINICONDA=0) for ${USER_A} ==="
+  as_user "${USER_A}" test -x "/home/${USER_A}/shell_utils/install_miniconda.sh" || \
+    fail "~/shell_utils/install_miniconda.sh missing or not executable for ${USER_A}"
+  [[ ! -x "/home/${USER_A}/miniconda3/bin/conda" ]] || \
+    fail "conda should not be installed when INSTALL_MINICONDA=0"
+  ok "install_miniconda.sh present without conda install for ${USER_A}"
 fi
 
 echo "=== templates: append(default), skip-existing, force overwrite ==="
