@@ -189,3 +189,110 @@ EOF
   } >>"$rc"
   run chown "${username}:${username}" "$rc"
 }
+
+# Seconds to wait for user processes to exit during account removal.
+STOP_USER_TIMEOUT_SEC="${STOP_USER_TIMEOUT_SEC:-15}"
+
+# Return 0 when USER has at least one running process.
+user_has_processes() {
+  local u="${1:?}"
+  pgrep -u "$u" >/dev/null 2>&1
+}
+
+# Stop rootless Docker containers and user-scoped docker.service when the socket exists.
+# Uses explicit DOCKER_HOST / XDG_RUNTIME_DIR (sudo -u does not load shell rc files).
+stop_rootless_docker_for_user() {
+  local u="${1:?}"
+  local uid xdg sock docker_host cids
+
+  uid="$(id -u "$u" 2>/dev/null)" || return 0
+  xdg="/run/user/${uid}"
+  sock="${xdg}/docker.sock"
+  [[ -S "$sock" ]] || return 0
+
+  docker_host="unix://${sock}"
+  echo "stopping rootless docker for user=${u}"
+
+  if [[ "${DRY_RUN:-}" == 1 ]]; then
+    echo "[dry-run] stop rootless docker containers (DOCKER_HOST=${docker_host})"
+    echo "[dry-run] systemctl --user stop docker (XDG_RUNTIME_DIR=${xdg})"
+    return 0
+  fi
+
+  if command -v docker >/dev/null 2>&1; then
+    cids="$(as_user "$u" env XDG_RUNTIME_DIR="$xdg" DOCKER_HOST="$docker_host" docker ps -q 2>/dev/null || true)"
+    if [[ -n "${cids}" ]]; then
+      # shellcheck disable=SC2086
+      as_user "$u" env XDG_RUNTIME_DIR="$xdg" DOCKER_HOST="$docker_host" docker stop ${cids} 2>/dev/null || true
+    fi
+  fi
+
+  as_user "$u" env XDG_RUNTIME_DIR="$xdg" systemctl --user stop docker 2>/dev/null || true
+}
+
+_wait_for_no_user_processes() {
+  local u="${1:?}"
+  local timeout="${2:?}"
+  local i
+
+  for ((i = 0; i < timeout; i++)); do
+    if ! user_has_processes "$u"; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
+# Gracefully stop user sessions and processes before userdel.
+# Order: rootless docker -> disable-linger -> terminate-user -> SIGTERM -> SIGKILL.
+stop_user_sessions_and_processes() {
+  local u="${1:?}"
+  local timeout="${2:-${STOP_USER_TIMEOUT_SEC}}"
+
+  if ! user_has_processes "$u"; then
+    echo "note: no processes for user=${u}; skip session stop"
+    return 0
+  fi
+
+  echo "stopping sessions and processes for user=${u}"
+
+  stop_rootless_docker_for_user "$u"
+
+  if command -v loginctl >/dev/null 2>&1; then
+    if [[ "${DRY_RUN:-}" == 1 ]]; then
+      echo "[dry-run] loginctl disable-linger ${u}"
+      echo "[dry-run] loginctl terminate-user ${u}"
+    else
+      loginctl disable-linger "$u" 2>/dev/null || true
+      loginctl terminate-user "$u" 2>/dev/null || true
+    fi
+  fi
+
+  if [[ "${DRY_RUN:-}" == 1 ]]; then
+    echo "[dry-run] wait up to ${timeout}s for processes to exit"
+    echo "[dry-run] pkill -TERM -u ${u} if still running"
+    echo "[dry-run] pkill -KILL -u ${u} if still running"
+    return 0
+  fi
+
+  if _wait_for_no_user_processes "$u" "$timeout"; then
+    return 0
+  fi
+
+  echo "note: sending SIGTERM to remaining processes for user=${u}"
+  pkill -TERM -u "$u" 2>/dev/null || true
+  if _wait_for_no_user_processes "$u" "$timeout"; then
+    return 0
+  fi
+
+  echo "note: sending SIGKILL to remaining processes for user=${u}"
+  pkill -KILL -u "$u" 2>/dev/null || true
+  if _wait_for_no_user_processes "$u" 5; then
+    return 0
+  fi
+
+  echo "error: user ${u} still has running processes:" >&2
+  ps -u "$u" -o pid,ppid,cmd >&2 || true
+  die "cannot remove user ${u}: processes still running (see above)"
+}
