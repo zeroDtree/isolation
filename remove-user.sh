@@ -3,13 +3,13 @@
 # Remove a user created by add-user.sh: deletes the account (and by default home + DATA_ROOT/<user>_data).
 # Does not undo host init (shared data dir under DATA_ROOT, shared software tree) or shared trees.
 #
+# By default, stops the user's sessions and processes before userdel (rootless Docker, systemd
+# user session, linger). Use --no-stop-processes to skip.
+#
 # Usage:
 #   sudo ./remove-user.sh USERNAME [options]
 #
 # Env: DATA_ROOT — must match the root used when the user was added (default from common/config.env).
-#
-# Options are passed to isolation/remove-isolation-user.sh:
-#   --dry-run, --keep-home, --keep-user-data, --force, --ignore-missing, -h, --help
 #
 # Examples:
 #   sudo ./remove-user.sh alice
@@ -26,6 +26,12 @@ REMOVE_SCRIPT="${SCRIPT_DIR}/isolation/remove-isolation-user.sh"
 
 usage() {
   awk '/^# @help-begin$/{f=1; next} /^# @help-end$/{f=0} f' "$0"
+  printf '%s\n' '#' 'Options:' '#'
+  if [[ -f "${REMOVE_SCRIPT:-}" ]]; then
+    awk '/^# @help-options-begin$/{f=1; next} /^# @help-options-end$/{f=0} f' "${REMOVE_SCRIPT}"
+  else
+    echo "#   [error: cannot load child script options — file not found]"
+  fi
   exit 0
 }
 

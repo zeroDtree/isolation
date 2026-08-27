@@ -100,7 +100,9 @@ Permissions applied under each path (after `chgrp -R` to `SHARED_GROUP` in all c
 sudo DATA_ROOT=/path/to/data_root bash remove-user.sh USERNAME
 ```
 
-`DATA_ROOT` must match the value used when the user was added (set the same way as for `add-user.sh`). Options are passed to [`isolation/remove-isolation-user.sh`](isolation/remove-isolation-user.sh) (`--keep-home`, `--keep-user-data`, `--dry-run`, `--force`, `--ignore-missing`, …).
+`DATA_ROOT` must match the value used when the user was added (set the same way as for `add-user.sh`). Options are passed to [`isolation/remove-isolation-user.sh`](isolation/remove-isolation-user.sh) (`--keep-home`, `--keep-user-data`, `--dry-run`, `--force`, `--ignore-missing`, `--no-stop-processes`, …).
+
+**Pre-removal cleanup (default):** before `userdel`, the script stops the user's sessions and processes so revoke does not fail with *user is currently used by process*. Order: rootless Docker containers (when the rootless socket exists) → `loginctl disable-linger` (symmetric with `enable-linger` during rootless Docker prep) → `loginctl terminate-user` → SIGTERM → SIGKILL if needed. Pass **`--no-stop-processes`** to skip this step (debugging or manual cleanup).
 
 Run `sudo ./remove-user.sh --help` for detailed options.
 

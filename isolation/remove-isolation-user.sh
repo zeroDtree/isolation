@@ -3,19 +3,25 @@
 # Remove a user provisioned by isolation/add-isolation-user.sh.
 # Does not remove shared layout (SHARED_DATA_PATH, /data/shared_software) or other users' data.
 #
+# By default, stops the user's sessions and processes (rootless Docker, systemd user
+# session, linger) before userdel so revoke does not fail with "user is currently used
+# by process".
+#
 # Usage:
 #   sudo DATA_ROOT=/data ./remove-isolation-user.sh USERNAME [options]
 #
-# Options:
-#   --dry-run            print actions only
-#   --keep-home          userdel without -r (leave /home/USER)
-#   --keep-user-data     do not remove DATA_ROOT/<prefix>USER<suffix>
-#   --force              pass userdel -f where supported (user may still be in use)
-#   --ignore-missing     exit 0 if the account is already gone; may still remove user_data dir
-#   -h, --help           show help
-#
 # Env: common/config.env (DATA_ROOT, USER_DATA_PREFIX, USER_DATA_SUFFIX, DRY_RUN)
 # @help-end
+
+# @help-options-begin
+#   --dry-run               print actions only
+#   --keep-home             userdel without -r (leave /home/USER)
+#   --keep-user-data        do not remove DATA_ROOT/<prefix>USER<suffix>
+#   --force                 pass userdel -f where supported (user may still be in use)
+#   --ignore-missing        exit 0 if the account is already gone; may still remove user_data dir
+#   --no-stop-processes     skip pre-removal session/process stop (default: stop before userdel)
+#   -h, --help              show help
+# @help-options-end
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -24,6 +30,8 @@ source "${SCRIPT_DIR}/../common/utils.sh"
 
 usage() {
   awk '/^# @help-begin$/{f=1; next} /^# @help-end$/{f=0} f' "$0"
+  printf '%s\n' '#' 'Options:' '#'
+  awk '/^# @help-options-begin$/{f=1; next} /^# @help-options-end$/{f=0} f' "$0"
   exit 0
 }
 
@@ -31,6 +39,7 @@ KEEP_HOME=0
 KEEP_USER_DATA=0
 FORCE_USERDEL=0
 IGNORE_MISSING=0
+STOP_PROCESSES=1
 
 require_root
 
@@ -58,6 +67,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --ignore-missing)
       IGNORE_MISSING=1
+      shift
+      ;;
+    --no-stop-processes)
+      STOP_PROCESSES=0
       shift
       ;;
     -h|--help)
@@ -108,6 +121,12 @@ if ! user_exists; then
     exit 0
   fi
   die "user does not exist: ${USERNAME} (use --ignore-missing to only drop user_data)"
+fi
+
+if [[ "${STOP_PROCESSES}" -eq 1 ]]; then
+  stop_user_sessions_and_processes "$USERNAME"
+else
+  echo "[skip] not stopping user processes (--no-stop-processes)"
 fi
 
 USERDEL_ARGS=()

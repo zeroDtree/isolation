@@ -243,12 +243,17 @@ ok "remove-user --ignore-missing when account absent"
 ./remove-user.sh nosuchuser_zz --dry-run --ignore-missing
 ok "remove-user dry-run with --ignore-missing"
 
+echo "=== remove-user stops background processes ==="
+as_user "${USER_B}" bash -c 'sleep 600 &'
+./remove-user.sh "${USER_B}"
+id "${USER_B}" &>/dev/null && fail "${USER_B} should be removed after remove-user"
+ok "remove-user stops background processes and deletes account"
+
 echo "=== cleanup ==="
 rm -f "${sw}/file_by_${USER_A}"
 rm -rf "${sw}/dir_by_${USER_A}" "${sw}/_test_fix_migrate_tree" "${sw}/_test_fix_normalize_tree"
 userdel -r "${USER_C}" 2>/dev/null || true
 userdel -r "${USER_A}" 2>/dev/null || true
-userdel -r "${USER_B}" 2>/dev/null || true
 userdel -r "${USER_PW}" 2>/dev/null || true
 
 echo "=== all checks passed ==="
