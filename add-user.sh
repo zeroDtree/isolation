@@ -21,7 +21,7 @@
 #   -h, --help                show help
 #
 # If no options are passed, the default behavior is equivalent to:
-#   sudo ./add-user.sh USERNAME --join-shared-data-group --with-default-user-env --with-join-shared-software-group --with-templates --no-force-templates --no-skip-existing-templates --with-user-cache-link --no-install-miniconda --no-install-rootless-docker
+#   sudo ./add-user.sh USERNAME --join-shared-data-group --with-default-user-env --with-join-shared-software-group --with-templates --no-force-templates --no-skip-existing-templates --with-user-cache-link --no-install-rootless-docker
 
 # @help-end
 
@@ -97,7 +97,7 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     # Pass through to apply-default-user-environment.sh
-    --join-shared-data-group|--no-join-shared-data-group|--no-join-shared-software-group|--with-join-shared-software-group|--skip-templates|--with-templates|--force-templates|--no-force-templates|--skip-existing-templates|--no-skip-existing-templates|--with-install-miniconda|--no-install-miniconda|--no-user-cache-link|--with-user-cache-link)
+    --join-shared-data-group|--no-join-shared-data-group|--no-join-shared-software-group|--with-join-shared-software-group|--skip-templates|--with-templates|--force-templates|--no-force-templates|--skip-existing-templates|--no-skip-existing-templates|--no-user-cache-link|--with-user-cache-link)
       PASS_APPLY_DEFAULT+=("$1")
       shift
       ;;

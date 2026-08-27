@@ -6,8 +6,6 @@
 # Env:
 #   USER_A, USER_B, USER_C — test usernames (defaults iso_a / iso_b / iso_c). docker-verify.sh exports A/B/C.
 #   USER_PW, USER_PW_PASS — password test account (defaults iso_pw / TestPw_123!); set here unless exported.
-#   INSTALL_MINICONDA — default 1: add-user.sh --with-install-miniconda for USER_A and conda checks (needs wget/curl in the image).
-#     Values 0, no, false, off (case variants) skip Miniconda install and conda checks.
 # @help-end
 
 set -euo pipefail
@@ -17,14 +15,6 @@ USER_B="${USER_B:-iso_b}"
 USER_C="${USER_C:-iso_c}"
 USER_PW="${USER_PW:-iso_pw}"
 USER_PW_PASS="${USER_PW_PASS:-TestPw_123!}"
-INSTALL_MINICONDA="${INSTALL_MINICONDA:-1}"
-
-want_miniconda() {
-  case "${INSTALL_MINICONDA}" in
-    0|no|false|NO|FALSE|off|OFF) return 1 ;;
-    *) return 0 ;;
-  esac
-}
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 ok() { echo "OK   $*"; }
@@ -39,7 +29,7 @@ expect_fail() {
 }
 
 cd /work
-chmod +x add-user.sh remove-user.sh fix-migrated-shared-software.sh isolation/*.sh default-user-environment/*.sh template/shell_utils/*.sh 2>/dev/null || true
+chmod +x add-user.sh remove-user.sh fix-migrated-shared-software.sh isolation/*.sh default-user-environment/*.sh 2>/dev/null || true
 
 # shellcheck source=common/config.env
 source /work/common/config.env
@@ -50,14 +40,8 @@ for u in "${USER_A}" "${USER_B}" "${USER_C}" "${USER_PW}"; do
   id "${u}" &>/dev/null && userdel -r "${u}" 2>/dev/null || true
 done
 
-echo "=== provision ${USER_A} (add-user.sh; optional miniconda) and ${USER_B} (--skip-templates) ==="
-if want_miniconda; then
-  echo "    (INSTALL_MINICONDA: install miniconda for ${USER_A})"
-  ./add-user.sh "${USER_A}" --with-install-miniconda
-else
-  echo "    (INSTALL_MINICONDA=0: skip --with-install-miniconda for ${USER_A})"
-  ./add-user.sh "${USER_A}"
-fi
+echo "=== provision ${USER_A} (add-user.sh) and ${USER_B} (--skip-templates) ==="
+./add-user.sh "${USER_A}"
 ./add-user.sh "${USER_B}" --skip-templates
 
 echo "=== add user with explicit password ==="
@@ -209,22 +193,15 @@ for u in "${USER_A}" "${USER_B}"; do
 done
 ok "~/.cache -> USER_DATA/${USER_CACHE_BACKING_NAME}, owned by user"
 
-if want_miniconda; then
-  echo "=== miniconda: --with-install-miniconda for ${USER_A} ==="
-  as_user "${USER_A}" test -x "/home/${USER_A}/shell_utils/install_miniconda.sh" || \
-    fail "~/shell_utils/install_miniconda.sh missing or not executable for ${USER_A}"
-  mc_root="/home/${USER_A}/miniconda3"
-  mc_conda="${mc_root}/bin/conda"
-  [[ -x "${mc_conda}" ]] || fail "missing conda executable: ${mc_conda}"
-  [[ ! -e "${mc_root}/miniconda.sh" ]] || fail "installer script should be removed: ${mc_root}/miniconda.sh"
-  as_user "${USER_A}" "${mc_conda}" --version >/dev/null || fail "conda is not runnable for ${USER_A}"
-  as_user "${USER_A}" test -f "/home/${USER_A}/.condarc" || fail ".condarc not created for ${USER_A}"
-  as_user "${USER_A}" grep -Eq "auto_activate:[[:space:]]*false" "/home/${USER_A}/.condarc" || \
-    fail ".condarc should contain auto_activate: false"
-  ok "miniconda installed and configured for ${USER_A}"
-else
-  echo "=== miniconda: skipped (INSTALL_MINICONDA=0) ==="
-fi
+echo "=== ~/shell_script copy (templates) ==="
+ss_a="/home/${USER_A}/shell_script"
+[[ -d "${ss_a}" ]] || fail "~/shell_script missing for ${USER_A}"
+[[ "$(stat -c '%U:%G' "${ss_a}")" == "${USER_A}:${USER_A}" ]] || fail "~/shell_script owner for ${USER_A}"
+[[ ! -e "${ss_a}/.git" ]] || fail "~/shell_script should not contain .git"
+[[ -f "${ss_a}/miniconda_install.sh" ]] || fail "~/shell_script/miniconda_install.sh missing for ${USER_A}"
+[[ -f "${ss_a}/template.sh" ]] || fail "~/shell_script/template.sh missing for ${USER_A}"
+[[ ! -e "/home/${USER_B}/shell_script" ]] || fail "${USER_B} (--skip-templates) should not have ~/shell_script"
+ok "~/shell_script copied for ${USER_A}, skipped for ${USER_B}"
 
 echo "=== templates: append(default), skip-existing, force overwrite ==="
 bashrc_a="/home/${USER_A}/.bashrc"

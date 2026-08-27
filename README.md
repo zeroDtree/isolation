@@ -4,7 +4,7 @@ Shell tooling to provision **isolated Linux accounts**. It covers:
 
 - **Data layout** — shared datasets plus per-user private trees under a configurable root.
 - **Collaborative shared software** (optional) — e.g. default `~/shared_software` (configurable via `USER_SOFTWARE_LINK_NAME`) into a shared tree on the host.
-- **Default shell environment** — symlinks such as default `~/data` (`USER_DATA_ROOT_LINK_NAME`) and optional `~/.cache` into private data, templates, and optional Miniconda.
+- **Default shell environment** — symlinks such as default `~/data` (`USER_DATA_ROOT_LINK_NAME`) and optional `~/.cache` into private data, templates, and a copy of `shell_script/` to `~/shell_script`.
 - **Rootless Docker preparation** (optional) — host checks and user-facing setup hooks.
 
 ## 1. Configuration
@@ -30,7 +30,7 @@ If the **Linux user already exists**, [`add-user.sh`](add-user.sh) does not call
 **Examples**
 
 ```bash
-sudo DATA_ROOT=/data bash add-user.sh alice --password 'your-password' --with-install-miniconda --with-install-rootless-docker
+sudo DATA_ROOT=/data bash add-user.sh alice --password 'your-password' --with-install-rootless-docker
 ```
 
 **What it does (typical run)**
@@ -42,7 +42,7 @@ sudo DATA_ROOT=/data bash add-user.sh alice --password 'your-password' --with-in
    - **`~/shared_software`** (default link name `USER_SOFTWARE_LINK_NAME`) → collaborative tree on the host (`SOFTWARE_ROOT`, default `${DATA_ROOT}/shared_software`) when **`ENABLE_SOFTWARE_AREA=1`** and you do not pass **`--no-join-shared-software-group`** (default is to join).
    - **`~/data`** (default link name `USER_DATA_ROOT_LINK_NAME`) → `DATA_ROOT` when **`ENABLE_DATA_ROOT_LINK=1`**, so shared and per-user `*_data` dirs are reachable from home.
    - **`~/.cache`** → a directory under the per-user private data tree (same `${DATA_ROOT}/<prefix><username><suffix>/…` rule as this step; backing basename `USER_CACHE_BACKING_NAME`, default `.cache`) when **`ENABLE_USER_CACHE_LINK=1`** and you do not pass **`--no-user-cache-link`** on `add-user.sh` (default is to create the symlink when both config and CLI allow it).
-   - **Templates** from `template/`: [`bashrc.sh`](template/bashrc.sh), [`zshrc.sh`](template/zshrc.sh), [`config.fish`](template/config.fish), [`vimrc`](template/vimrc) (or `vimrc.sh` if present). Flags include **`--skip-templates`** / **`--with-templates`**, **`--force-templates`** / **`--no-force-templates`**, **`--skip-existing-templates`** / **`--no-skip-existing-templates`**.
+   - **Templates** from `template/`: [`bashrc.sh`](template/bashrc.sh), [`zshrc.sh`](template/zshrc.sh), [`config.fish`](template/config.fish), [`vimrc`](template/vimrc) (or `vimrc.sh` if present). Also copies [`shell_script/`](shell_script/) → `~/shell_script`. Flags include **`--skip-templates`** / **`--with-templates`**, **`--force-templates`** / **`--no-force-templates`**, **`--skip-existing-templates`** / **`--no-skip-existing-templates`**. `--skip-templates` skips both the rc/vim files and the `~/shell_script` copy.
 
 4. **Rootless Docker prep** (only with **`--with-install-rootless-docker`**) — runs [`docker/ubuntu/install-rootless-docker-for-user.sh`](docker/ubuntu/install-rootless-docker-for-user.sh) after the user step. Use **`--no-install-rootless-docker`** to skip explicitly.
 
@@ -109,7 +109,7 @@ Run `sudo ./remove-user.sh --help` for detailed options.
 Requires Docker. Runs the repo checks inside a container (default image `ubuntu:24.04`).
 
 ```bash
-bash tests/docker-verify.sh --no-install-miniconda
+bash tests/docker-verify.sh
 ```
 
-[`tests/docker-verify.sh`](tests/docker-verify.sh) is **not** `add-user.sh`: it accepts **`--no-install-miniconda`** and **`--with-install-miniconda`** only on this wrapper (same naming as `add-user.sh`), and exports **`INSTALL_MINICONDA`** for [`tests/docker-verify-inner.sh`](tests/docker-verify-inner.sh) (default `1`, so the inner script runs `add-user.sh … --with-install-miniconda` unless you skip). The **container image** is the optional **first** argument (default `ubuntu:24.04` if omitted), same style as **`USERNAME [options]`** elsewhere; put Miniconda flags **after** the image, for example `bash tests/docker-verify.sh debian:bookworm --no-install-miniconda`. You can also set **`INSTALL_MINICONDA=0`** in the environment instead of **`--no-install-miniconda`**. The Miniconda path needs network in the container.
+[`tests/docker-verify.sh`](tests/docker-verify.sh) is **not** `add-user.sh`. The **container image** is the optional **first** argument (default `ubuntu:24.04` if omitted), for example `bash tests/docker-verify.sh debian:bookworm`. The repo is mounted into the container, so the `shell_script` submodule must be checked out on the host.

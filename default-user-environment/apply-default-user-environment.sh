@@ -2,7 +2,7 @@
 # @help-begin
 # Apply doc/en/default.md to an existing user: software group, ~/shared_software symlink, ~/USER_DATA_ROOT_LINK_NAME -> DATA_ROOT,
 # optional ~/.cache symlink into per-user private data (ENABLE_USER_CACHE_LINK, USER_CACHE_BACKING_NAME),
-# shell templates, optional Miniconda. Appends umask hint to ~/.bashrc, ~/.zshrc, ~/.config/fish/config.fish when present.
+# shell templates, and copy of SHELL_SCRIPT_DIR to ~/shell_script. Appends umask hint to ~/.bashrc, ~/.zshrc, ~/.config/fish/config.fish when present.
 #
 # Usage:
 #   sudo ./apply-default-user-environment.sh USERNAME [options]
@@ -15,16 +15,13 @@
 #   --with-join-shared-software-group add to SOFTWARE_GROUP and ~/shared_software (default; clarity only)
 #   --no-user-cache-link   do not symlink ~/.cache to private USER_DATA cache directory
 #   --with-user-cache-link symlink ~/.cache when ENABLE_USER_CACHE_LINK=1 (default; clarity after --no-user-cache-link)
-#   --skip-templates          do not apply files from TEMPLATE_DIR
-#   --with-templates          apply files from TEMPLATE_DIR (default; clarity after --skip-templates)
+#   --skip-templates          do not apply TEMPLATE_DIR files or copy SHELL_SCRIPT_DIR to ~/shell_script
+#   --with-templates          apply templates and copy ~/shell_script (default; clarity after --skip-templates)
 #   --force-templates         overwrite destination files from templates
 #   --no-force-templates      merge/replace per default rules (default; clarity after --force-templates)
 #   --skip-existing-templates keep existing files unchanged (no merge/replace)
 #   --no-skip-existing-templates default merge/replace behavior (clarity after --skip-existing-templates)
 #                             default: append if no marker, else replace isolation template block(s)
-#   --install-miniconda    same as --with-install-miniconda
-#   --with-install-miniconda copy template/shell_utils -> ~/shell_utils, run install_miniconda.sh as the user (needs network)
-#   --no-install-miniconda skip Miniconda install (default)
 #   -h, --help             show help
 # @help-options-end
 #
@@ -45,7 +42,6 @@ JOIN_USER_CACHE_LINK=1
 SKIP_TEMPLATES=0
 FORCE_TEMPLATES=0
 SKIP_EXISTING_TEMPLATES=0
-INSTALL_MINICONDA=0
 
 usage() {
   awk '/^# @help-begin$/{f=1; next} /^# @help-end$/{f=0} f' "$0"
@@ -106,14 +102,6 @@ while [[ $# -gt 0 ]]; do
       ;;
     --no-skip-existing-templates)
       SKIP_EXISTING_TEMPLATES=0
-      shift
-      ;;
-    --install-miniconda|--with-install-miniconda)
-      INSTALL_MINICONDA=1
-      shift
-      ;;
-    --no-install-miniconda)
-      INSTALL_MINICONDA=0
       shift
       ;;
     -h|--help)
@@ -336,26 +324,29 @@ else
   [[ ! -d "${TEMPLATE_DIR}" ]] && echo "[warn] TEMPLATE_DIR not a directory: ${TEMPLATE_DIR}"
 fi
 
+if [[ "$SKIP_TEMPLATES" -eq 0 ]]; then
+  SS_SRC="${SHELL_SCRIPT_DIR}"
+  SS_DST="${HOME_DIR}/shell_script"
+  if [[ ! -d "$SS_SRC" ]]; then
+    die "SHELL_SCRIPT_DIR missing: ${SS_SRC} (init the shell_script git submodule)"
+  fi
+  if [[ -z "$(find "${SS_SRC}" -mindepth 1 -maxdepth 1 ! -name '.git' -print -quit)" ]]; then
+    die "SHELL_SCRIPT_DIR empty or uninitialized: ${SS_SRC}"
+  fi
+  run mkdir -p "${HOME_DIR}"
+  run rm -rf "${SS_DST}"
+  # Follow symlinks so ~/shell_script is real files (symlinks into the repo break for other users).
+  run cp -aL "${SS_SRC}" "${SS_DST}"
+  run rm -rf "${SS_DST}/.git"
+  run chown -R "${USERNAME}:${USERNAME}" "${SS_DST}"
+else
+  echo "[skip] ~/shell_script (--skip-templates)"
+fi
+
 # Umask hint: append once per file if marker missing (bash, zsh, fish when file exists).
 append_isolation_umask_rc "${USERNAME}" "${HOME_DIR}/.bashrc" 0
 append_isolation_umask_rc "${USERNAME}" "${HOME_DIR}/.zshrc" 0
 append_isolation_umask_rc "${USERNAME}" "${HOME_DIR}/.config/fish/config.fish" 0
-
-if [[ "$INSTALL_MINICONDA" -eq 1 ]]; then
-  SU_SRC="${TEMPLATE_DIR}/shell_utils"
-  SU_DST="${HOME_DIR}/shell_utils"
-  MC_DST="${SU_DST}/install_miniconda.sh"
-  if [[ ! -d "$SU_SRC" ]] || [[ ! -f "${SU_SRC}/install_miniconda.sh" ]]; then
-    die "template shell_utils missing or incomplete: ${SU_SRC} (need install_miniconda.sh)"
-  fi
-  run mkdir -p "${HOME_DIR}"
-  run rm -rf "${SU_DST}"
-  # Follow symlinks so ~/shell_utils is real files (symlinks into the repo break for other users).
-  run cp -aL "${SU_SRC}" "${SU_DST}"
-  run chown -R "${USERNAME}:${USERNAME}" "${SU_DST}"
-  run chmod +x "${MC_DST}"
-  as_user_in_home "$USERNAME" bash "$MC_DST"
-fi
 
 echo "ok: default user environment applied for ${USERNAME}"
 echo "    note: new group membership requires re-login to take effect (newgrp or log out/in)"

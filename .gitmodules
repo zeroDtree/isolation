@@ -1,0 +1,3 @@
+[submodule "shell_script"]
+	path = shell_script
+	url = git@github.com:zeroDtree/shell_script.git
