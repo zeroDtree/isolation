@@ -29,7 +29,7 @@ expect_fail() {
 }
 
 cd /work
-chmod +x add-user.sh remove-user.sh fix-migrated-shared-software.sh isolation/*.sh default-user-environment/*.sh 2>/dev/null || true
+chmod +x add-user.sh remove-user.sh fix-migrated-shared-software.sh shell_script/share-owned-data.sh isolation/*.sh default-user-environment/*.sh 2>/dev/null || true
 
 # shellcheck source=common/config.env
 source /work/common/config.env
@@ -73,6 +73,76 @@ for u in "${USER_A}" "${USER_B}"; do
 done
 ok "homes and *_data are 700 and user-owned"
 
+echo "=== share-owned-data.sh (owning user: chgrp + g+s) ==="
+OWN_TREE="${SHARED_DATA_PATH}/_test_share_owned_default"
+rm -rf "${OWN_TREE}"
+mkdir -p "${OWN_TREE}/sub"
+echo data > "${OWN_TREE}/sub/file.txt"
+chown -R "${USER_A}:${USER_A}" "${OWN_TREE}"
+find "${OWN_TREE}" -type d -exec chmod g-s {} +
+chmod 750 "${OWN_TREE}" "${OWN_TREE}/sub"
+chmod 640 "${OWN_TREE}/sub/file.txt"
+as_user "${USER_A}" shell_script/share-owned-data.sh "${OWN_TREE}"
+[[ "$(stat -c '%U' "${OWN_TREE}/sub/file.txt")" == "${USER_A}" ]] || fail "share-owned owner should stay ${USER_A}"
+[[ "$(stat -c '%G' "${OWN_TREE}/sub/file.txt")" == "${SHARED_GROUP}" ]] || fail "share-owned file group want ${SHARED_GROUP}"
+[[ "$(stat -c '%G' "${OWN_TREE}/sub")" == "${SHARED_GROUP}" ]] || fail "share-owned dir group want ${SHARED_GROUP}"
+[[ "$(stat -c '%a' "${OWN_TREE}/sub")" == "2750" ]] || fail "share-owned dir want 2750 got $(stat -c '%a' "${OWN_TREE}/sub")"
+[[ "$(stat -c '%a' "${OWN_TREE}/sub/file.txt")" == "640" ]] || fail "share-owned file mode should stay 640"
+perm_own="$(stat -c '%A' "${OWN_TREE}/sub")"
+[[ "${perm_own}" == *s* ]] || fail "share-owned dir should have setgid, got ${perm_own}"
+as_user "${USER_B}" test -r "${OWN_TREE}/sub/file.txt" || fail "${USER_B} should read group-readable file"
+ok "share-owned-data default: chgrp ${SHARED_GROUP} + g+s, file mode unchanged"
+
+echo "=== share-owned-data.sh (--normalize-perms) ==="
+OWN_NORM="${SHARED_DATA_PATH}/_test_share_owned_norm"
+rm -rf "${OWN_NORM}"
+mkdir -p "${OWN_NORM}/bin"
+echo hi > "${OWN_NORM}/data.txt"
+printf '#!/bin/sh\necho x\n' > "${OWN_NORM}/bin/tool"
+chown -R "${USER_A}:${USER_A}" "${OWN_NORM}"
+chmod 777 "${OWN_NORM}/bin"
+chmod 600 "${OWN_NORM}/data.txt"
+chmod 700 "${OWN_NORM}/bin/tool"
+find "${OWN_NORM}" -type d -exec chmod g-s {} +
+as_user "${USER_A}" shell_script/share-owned-data.sh --normalize-perms "${OWN_NORM}"
+[[ "$(stat -c '%U' "${OWN_NORM}/data.txt")" == "${USER_A}" ]] || fail "normalized owner should stay ${USER_A}"
+[[ "$(stat -c '%a' "${OWN_NORM}/bin")" == "2755" ]] || fail "share-owned norm bin want 2755 got $(stat -c '%a' "${OWN_NORM}/bin")"
+[[ "$(stat -c '%a' "${OWN_NORM}/data.txt")" == "644" ]] || fail "share-owned norm data want 644 got $(stat -c '%a' "${OWN_NORM}/data.txt")"
+[[ "$(stat -c '%a' "${OWN_NORM}/bin/tool")" == "755" ]] || fail "share-owned norm tool want 755 got $(stat -c '%a' "${OWN_NORM}/bin/tool")"
+[[ "$(stat -c '%G' "${OWN_NORM}/data.txt")" == "${SHARED_GROUP}" ]] || fail "share-owned norm group want ${SHARED_GROUP}"
+as_user "${USER_B}" test -r "${OWN_NORM}/data.txt" || fail "${USER_B} should read normalized file"
+ok "share-owned-data --normalize-perms 2755/644/755"
+
+echo "=== share-owned-data.sh expected failures ==="
+expect_fail "share-owned-data.sh refuses root" \
+  shell_script/share-owned-data.sh "${OWN_TREE}" 2>/dev/null
+
+expect_fail "share-owned-data.sh rejects path outside SHARED_DATA_PATH" \
+  as_user "${USER_A}" shell_script/share-owned-data.sh /tmp 2>/dev/null
+
+MIX="${SHARED_DATA_PATH}/_test_share_owned_mixed"
+rm -rf "${MIX}"
+mkdir -p "${MIX}"
+echo mine > "${MIX}/mine.txt"
+chown -R "${USER_A}:${USER_A}" "${MIX}"
+echo other > "${MIX}/other.txt"
+chown "${USER_B}:${USER_B}" "${MIX}/other.txt"
+mix_group_before="$(stat -c '%G' "${MIX}/mine.txt")"
+expect_fail "share-owned-data.sh rejects foreign-owned file" \
+  as_user "${USER_A}" shell_script/share-owned-data.sh "${MIX}" 2>/dev/null
+[[ "$(stat -c '%G' "${MIX}/mine.txt")" == "${mix_group_before}" ]] || fail "mixed tree group should be unchanged after refusal"
+rm -rf "${MIX}"
+
+PW_TREE="${SHARED_DATA_PATH}/_test_share_owned_pw"
+rm -rf "${PW_TREE}"
+mkdir -p "${PW_TREE}"
+echo pw > "${PW_TREE}/file.txt"
+chown -R "${USER_PW}:${USER_PW}" "${PW_TREE}"
+expect_fail "share-owned-data.sh rejects user not in ${SHARED_GROUP}" \
+  as_user "${USER_PW}" shell_script/share-owned-data.sh "${PW_TREE}" 2>/dev/null
+rm -rf "${PW_TREE}"
+rm -rf "${OWN_TREE}" "${OWN_NORM}"
+
 expect_fail "${USER_A} cannot ls ${USER_B} home" \
   as_user "${USER_A}" ls "/home/${USER_B}" 2>/dev/null
 
@@ -82,8 +152,8 @@ expect_fail "${USER_A} cannot read ${USER_B} file in home" \
 expect_fail "${USER_A} cannot list ${USER_B} private data dir" \
   as_user "${USER_A}" ls "/data/${USER_B}_data" 2>/dev/null
 
-echo "=== SOFTWARE_ROOT (shared_software) 3775 (setgid + sticky) ==="
-sw="/data/shared_software"
+echo "=== SOFTWARE_ROOT (${SOFTWARE_GROUP}) 3775 (setgid + sticky) ==="
+sw="${SOFTWARE_ROOT}"
 [[ "$(stat -c '%a' "${sw}")" == "3775" ]] || fail "${sw} mode want 3775 got $(stat -c '%a' "${sw}")"
 # Sticky and setgid bits (stat %a four-digit octal on GNU stat)
 [[ "$(stat -c '%a' "${sw}")" == "3775" ]] || fail "mode"
@@ -94,9 +164,9 @@ echo "    ${sw} -> ${perm}"
 ok "${sw} is 3775 with sticky + setgid (symbolic check)"
 
 for u in "${USER_A}" "${USER_B}"; do
-  id "${u}" | grep -q software || fail "${u} not in software group"
+  id -nG "${u}" | tr ' ' '\n' | grep -qx "${SOFTWARE_GROUP}" || fail "${u} not in ${SOFTWARE_GROUP}"
 done
-ok "both users in software group"
+ok "both users in ${SOFTWARE_GROUP}"
 
 echo "=== shared_software sticky — cannot unlink peer file; can read ==="
 as_user "${USER_A}" touch "${sw}/file_by_${USER_A}"
@@ -108,11 +178,11 @@ expect_fail "${USER_B} cannot delete ${USER_A}'s file (sticky)" \
 as_user "${USER_B}" test -r "${sw}/file_by_${USER_A}" || fail "${USER_B} should read ${USER_A}'s file (group read)"
 ok "${USER_B} can read peer file in shared_software"
 
-echo "=== setgid: new entries inherit group software ==="
+echo "=== setgid: new entries inherit group ${SOFTWARE_GROUP} ==="
 as_user "${USER_A}" mkdir -p "${sw}/dir_by_${USER_A}"
-[[ "$(stat -c '%G' "${sw}/dir_by_${USER_A}")" == "software" ]] || \
-  fail "new dir group want software got $(stat -c '%G' "${sw}/dir_by_${USER_A}")"
-ok "new subdirectory group is software (setgid)"
+[[ "$(stat -c '%G' "${sw}/dir_by_${USER_A}")" == "${SOFTWARE_GROUP}" ]] || \
+  fail "new dir group want ${SOFTWARE_GROUP} got $(stat -c '%G' "${sw}/dir_by_${USER_A}")"
+ok "new subdirectory group is ${SOFTWARE_GROUP} (setgid)"
 
 echo "=== fix-migrated-shared-software.sh (default: chgrp + g+s on dirs) ==="
 MIG_TREE="${sw}/_test_fix_migrate_tree"
@@ -126,12 +196,12 @@ find "${MIG_TREE}" -type d -exec chmod g-s {} +
 find "${MIG_TREE}" -type d -exec chmod 755 {} +
 
 ./fix-migrated-shared-software.sh "${MIG_TREE}"
-[[ "$(stat -c '%G' "${MIG_TREE}/readme.txt")" == "software" ]] || fail "migrated file group should be software"
-[[ "$(stat -c '%G' "${MIG_TREE}/sub")" == "software" ]] || fail "migrated sub dir group should be software"
+[[ "$(stat -c '%G' "${MIG_TREE}/readme.txt")" == "${SOFTWARE_GROUP}" ]] || fail "migrated file group should be ${SOFTWARE_GROUP}"
+[[ "$(stat -c '%G' "${MIG_TREE}/sub")" == "${SOFTWARE_GROUP}" ]] || fail "migrated sub dir group should be ${SOFTWARE_GROUP}"
 perm_mig_sub="$(stat -c '%A' "${MIG_TREE}/sub")"
 [[ "${perm_mig_sub}" == *s* ]] || fail "migrated sub dir should have setgid, got ${perm_mig_sub}"
 as_user "${USER_A}" test -x "${MIG_TREE}/sub/run.sh" || fail "${USER_A} should run preserved executable after default fix"
-ok "fix-migrated-shared-software default: chgrp software + g+s on dirs"
+ok "fix-migrated-shared-software default: chgrp ${SOFTWARE_GROUP} + g+s on dirs"
 
 echo "=== fix-migrated-shared-software.sh (--normalize-perms) ==="
 NORM_TREE="${sw}/_test_fix_normalize_tree"
@@ -155,13 +225,14 @@ echo "=== fix-migrated-shared-software.sh rejects path outside SOFTWARE_ROOT ===
 expect_fail "fix script rejects /tmp" \
   ./fix-migrated-shared-software.sh /tmp
 
-echo "=== user without software: cannot create in shared_software ==="
+echo "=== user without ${SOFTWARE_GROUP}: cannot create in ${sw} ==="
 useradd -m -s /bin/bash "${USER_C}" 2>/dev/null || true
-usermod -aG shared_data "${USER_C}" || true
-# not in group software
-id "${USER_C}" | grep -q software && fail "${USER_C} should not be in software for this test" || true
+usermod -aG "${SHARED_GROUP}" "${USER_C}" || true
+if id -nG "${USER_C}" | tr ' ' '\n' | grep -qx "${SOFTWARE_GROUP}"; then
+  fail "${USER_C} should not be in ${SOFTWARE_GROUP} for this test"
+fi
 
-expect_fail "${USER_C} (no software) cannot create in ${sw}" \
+expect_fail "${USER_C} (not in ${SOFTWARE_GROUP}) cannot create in ${sw}" \
   as_user "${USER_C}" touch "${sw}/by_${USER_C}" 2>/dev/null
 
 echo "=== ~/${USER_SOFTWARE_LINK_NAME} -> SOFTWARE_ROOT ==="
@@ -200,6 +271,7 @@ ss_a="/home/${USER_A}/shell_script"
 [[ ! -e "${ss_a}/.git" ]] || fail "~/shell_script should not contain .git"
 [[ -f "${ss_a}/miniconda_install.sh" ]] || fail "~/shell_script/miniconda_install.sh missing for ${USER_A}"
 [[ -f "${ss_a}/template.sh" ]] || fail "~/shell_script/template.sh missing for ${USER_A}"
+[[ -f "${ss_a}/share-owned-data.sh" ]] || fail "~/shell_script/share-owned-data.sh missing for ${USER_A}"
 [[ ! -e "/home/${USER_B}/shell_script" ]] || fail "${USER_B} (--skip-templates) should not have ~/shell_script"
 ok "~/shell_script copied for ${USER_A}, skipped for ${USER_B}"
 

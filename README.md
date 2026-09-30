@@ -92,7 +92,29 @@ Permissions applied under each path (after `chgrp -R` to `SHARED_GROUP` in all c
 - Ensure **`SHARED_DATA_PATH`** exists (`isolation/init-host.sh` creates it).
 - Use **`DRY_RUN=1`** to print planned actions only.
 
-## 5. Remove user
+## 5. Share data you own
+
+When you own a tree under `SHARED_DATA_PATH` and you are already in `SHARED_GROUP`, publish it for the rest of that group with [`shell_script/share-owned-data.sh`](shell_script/share-owned-data.sh). `add-user.sh` also copies that script to `~/shell_script/share-owned-data.sh`. Run it as the owning user. Root-owned or mixed-owner trees stay on [`fix-migrated-shared-data.sh`](fix-migrated-shared-data.sh).
+
+```bash
+shell_script/share-owned-data.sh /path/to/data_root/shared_data/my_dataset
+~/shell_script/share-owned-data.sh --normalize-perms /path/to/data_root/shared_data/my_dataset
+shell_script/share-owned-data.sh --dry-run /path/to/data_root/shared_data/my_dataset
+```
+
+The script exits before it changes anything unless every inode under each path is owned by you, you are a member of `SHARED_GROUP`, and each path resolves under `SHARED_DATA_PATH`. `chgrp` runs before `chmod`, so the setgid bit is kept. Symlinks are not followed.
+
+Permissions applied under each path (after `chgrp -R` to `SHARED_GROUP` in all cases):
+
+| Target                          | Default                                              | With `--normalize-perms`      |
+| ------------------------------- | ---------------------------------------------------- | ----------------------------- |
+| Directories                     | Add setgid: `chmod g+s` (other mode bits left as-is) | `2755` (setgid + `rwxr-xr-x`) |
+| Regular files (no execute bit)  | Unchanged                                            | `644`                         |
+| Regular files (any execute bit) | Unchanged                                            | `755`                         |
+
+- Use **`--dry-run`** (or **`DRY_RUN=1`**) to print planned actions only. The checks above still run.
+
+## 6. Remove user
 
 [`remove-user.sh`](remove-user.sh) removes an account created by this flow. It does **not** tear down host-wide layout (shared data dir, shared software tree, or other users).
 
@@ -106,7 +128,7 @@ sudo DATA_ROOT=/path/to/data_root bash remove-user.sh USERNAME
 
 Run `sudo ./remove-user.sh --help` for detailed options.
 
-## 6. Docker smoke test
+## 7. Docker smoke test
 
 Requires Docker. Runs the repo checks inside a container (default image `ubuntu:24.04`).
 
