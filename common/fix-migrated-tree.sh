@@ -2,6 +2,13 @@
 # Shared helpers for fix-migrated-shared-software.sh and fix-migrated-shared-data.sh.
 # Source this file after common/config.env and common/utils.sh; do not execute.
 
+# Matches USER_UMASK_HINT=027 (other has no access). Keep in lockstep with
+# shell_script/share-owned-data.sh. setgid dir rwxr-x---, file rw-r-----,
+# executable rwxr-x---. Not sticky and not group-writable.
+_FIX_MIGRATED_DIR_MODE=2750
+_FIX_MIGRATED_FILE_MODE=640
+_FIX_MIGRATED_EXEC_MODE=750
+
 # State for fix_migrated_tree_main (set only while it runs).
 _FIX_MIGRATED_TARGET_ROOT_CANON=""
 
@@ -65,16 +72,16 @@ _fix_migrated_dry_run_chmods() {
   local pe="${_FIX_MIGRATED_FIND_PERM_ANY:?internal error: _FIX_MIGRATED_FIND_PERM_ANY not set}"
   while IFS= read -r -d '' d; do
     if _fix_migrated_skip_dir_normalize "$d"; then
-      printf '[dry-run] skip chmod 2755 %q (collaborative subtree)\n' "$d"
+      printf '[dry-run] skip chmod %s %q (collaborative subtree)\n' "${_FIX_MIGRATED_DIR_MODE}" "$d"
     else
-      printf '[dry-run] chmod 2755 %q\n' "$d"
+      printf '[dry-run] chmod %s %q\n' "${_FIX_MIGRATED_DIR_MODE}" "$d"
     fi
   done < <(find "$tree" -type d -print0 2>/dev/null)
   while IFS= read -r -d '' f; do
-    printf '[dry-run] chmod 644 %q\n' "$f"
+    printf '[dry-run] chmod %s %q\n' "${_FIX_MIGRATED_FILE_MODE}" "$f"
   done < <(find "$tree" -type f ! -perm "${pe}" -print0 2>/dev/null)
   while IFS= read -r -d '' f; do
-    printf '[dry-run] chmod 755 %q\n' "$f"
+    printf '[dry-run] chmod %s %q\n' "${_FIX_MIGRATED_EXEC_MODE}" "$f"
   done < <(find "$tree" -type f -perm "${pe}" -print0 2>/dev/null)
 }
 
@@ -177,12 +184,12 @@ fix_migrated_tree_main() {
             if _fix_migrated_skip_dir_normalize "$d"; then
               chmod g+s "$d"
             else
-              chmod 2755 "$d"
+              chmod "${_FIX_MIGRATED_DIR_MODE}" "$d"
             fi
           done < <(find "$p" -type d -print0 2>/dev/null)
         fi
-        find "$p" -type f ! -perm "${_FIX_MIGRATED_FIND_PERM_ANY}" -exec chmod 644 {} +
-        find "$p" -type f -perm "${_FIX_MIGRATED_FIND_PERM_ANY}" -exec chmod 755 {} +
+        find "$p" -type f ! -perm "${_FIX_MIGRATED_FIND_PERM_ANY}" -exec chmod "${_FIX_MIGRATED_FILE_MODE}" {} +
+        find "$p" -type f -perm "${_FIX_MIGRATED_FIND_PERM_ANY}" -exec chmod "${_FIX_MIGRATED_EXEC_MODE}" {} +
       fi
     else
       if [[ "${DRY_RUN:-}" == 1 ]]; then
@@ -196,7 +203,7 @@ fix_migrated_tree_main() {
   done
 
   if [[ "${NORMALIZE_PERMS}" -eq 1 ]]; then
-    echo "ok: chgrp ${FIX_MIGRATED_TARGET_GROUP}, normalized dirs 2755 + files 644/755 (${#PATHS[@]} path(s))"
+    echo "ok: chgrp ${FIX_MIGRATED_TARGET_GROUP}, normalized dirs ${_FIX_MIGRATED_DIR_MODE} + files ${_FIX_MIGRATED_FILE_MODE}/${_FIX_MIGRATED_EXEC_MODE} (${#PATHS[@]} path(s))"
   else
     echo "ok: group ${FIX_MIGRATED_TARGET_GROUP} and setgid on directories under ${#PATHS[@]} path(s)"
   fi

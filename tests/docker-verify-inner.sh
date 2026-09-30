@@ -56,14 +56,17 @@ echo "=== DATA_ROOT and SHARED_DATA_PATH layout ==="
 [[ "$(stat -c '%a' /data)" == "755" ]] || fail "/data mode want 755 got $(stat -c '%a' /data)"
 ok "/data mode 755 (root:root)"
 
-[[ "$(stat -c '%a' "${SHARED_DATA_PATH}")" == "3775" ]] || fail "${SHARED_DATA_PATH} mode want 3775 got $(stat -c '%a' "${SHARED_DATA_PATH}")"
+[[ "$(stat -c '%a' "${SHARED_DATA_PATH}")" == "3770" ]] || fail "${SHARED_DATA_PATH} mode want 3770 got $(stat -c '%a' "${SHARED_DATA_PATH}")"
 perm_shared="$(stat -c '%A' "${SHARED_DATA_PATH}")"
-[[ "${perm_shared}" == *t* ]] || fail "${SHARED_DATA_PATH} sticky bit (t) not shown in ${perm_shared}"
+[[ "${perm_shared}" == *T* ]] || fail "${SHARED_DATA_PATH} sticky bit (T) not shown in ${perm_shared}"
 [[ "${perm_shared}" == *s* ]] || fail "${SHARED_DATA_PATH} setgid bit (s) not shown in ${perm_shared}"
-ok "${SHARED_DATA_PATH} mode 3775 (sticky + setgid)"
+ok "${SHARED_DATA_PATH} mode 3770 (sticky + setgid, other none)"
 
 [[ "$(stat -c '%U:%G' "${SHARED_DATA_PATH}")" == "root:shared_data" ]] || fail "${SHARED_DATA_PATH} owner want root:shared_data"
 ok "${SHARED_DATA_PATH} group shared_data"
+
+expect_fail "${USER_PW} (not in ${SHARED_GROUP}) cannot list ${SHARED_DATA_PATH}" \
+  as_user "${USER_PW}" ls "${SHARED_DATA_PATH}" 2>/dev/null
 
 echo "=== home and per-user private data (700), cross-user deny ==="
 for u in "${USER_A}" "${USER_B}"; do
@@ -106,12 +109,12 @@ chmod 700 "${OWN_NORM}/bin/tool"
 find "${OWN_NORM}" -type d -exec chmod g-s {} +
 as_user "${USER_A}" shell_script/share-owned-data.sh --normalize-perms "${OWN_NORM}"
 [[ "$(stat -c '%U' "${OWN_NORM}/data.txt")" == "${USER_A}" ]] || fail "normalized owner should stay ${USER_A}"
-[[ "$(stat -c '%a' "${OWN_NORM}/bin")" == "2755" ]] || fail "share-owned norm bin want 2755 got $(stat -c '%a' "${OWN_NORM}/bin")"
-[[ "$(stat -c '%a' "${OWN_NORM}/data.txt")" == "644" ]] || fail "share-owned norm data want 644 got $(stat -c '%a' "${OWN_NORM}/data.txt")"
-[[ "$(stat -c '%a' "${OWN_NORM}/bin/tool")" == "755" ]] || fail "share-owned norm tool want 755 got $(stat -c '%a' "${OWN_NORM}/bin/tool")"
+[[ "$(stat -c '%a' "${OWN_NORM}/bin")" == "2750" ]] || fail "share-owned norm bin want 2750 got $(stat -c '%a' "${OWN_NORM}/bin")"
+[[ "$(stat -c '%a' "${OWN_NORM}/data.txt")" == "640" ]] || fail "share-owned norm data want 640 got $(stat -c '%a' "${OWN_NORM}/data.txt")"
+[[ "$(stat -c '%a' "${OWN_NORM}/bin/tool")" == "750" ]] || fail "share-owned norm tool want 750 got $(stat -c '%a' "${OWN_NORM}/bin/tool")"
 [[ "$(stat -c '%G' "${OWN_NORM}/data.txt")" == "${SHARED_GROUP}" ]] || fail "share-owned norm group want ${SHARED_GROUP}"
 as_user "${USER_B}" test -r "${OWN_NORM}/data.txt" || fail "${USER_B} should read normalized file"
-ok "share-owned-data --normalize-perms 2755/644/755"
+ok "share-owned-data --normalize-perms 2750/640/750"
 
 echo "=== share-owned-data.sh expected failures ==="
 expect_fail "share-owned-data.sh refuses root" \
@@ -152,16 +155,17 @@ expect_fail "${USER_A} cannot read ${USER_B} file in home" \
 expect_fail "${USER_A} cannot list ${USER_B} private data dir" \
   as_user "${USER_A}" ls "/data/${USER_B}_data" 2>/dev/null
 
-echo "=== SOFTWARE_ROOT (${SOFTWARE_GROUP}) 3775 (setgid + sticky) ==="
+echo "=== SOFTWARE_ROOT (${SOFTWARE_GROUP}) 3770 (setgid + sticky, other none) ==="
 sw="${SOFTWARE_ROOT}"
-[[ "$(stat -c '%a' "${sw}")" == "3775" ]] || fail "${sw} mode want 3775 got $(stat -c '%a' "${sw}")"
+[[ "$(stat -c '%a' "${sw}")" == "3770" ]] || fail "${sw} mode want 3770 got $(stat -c '%a' "${sw}")"
 # Sticky and setgid bits (stat %a four-digit octal on GNU stat)
-[[ "$(stat -c '%a' "${sw}")" == "3775" ]] || fail "mode"
+[[ "$(stat -c '%a' "${sw}")" == "3770" ]] || fail "mode"
+[[ "$(stat -c '%a' "${sw}/cuda")" == "3770" ]] || fail "${sw}/cuda mode want 3770 got $(stat -c '%a' "${sw}/cuda")"
 perm="$(stat -c '%A' "${sw}")"
 echo "    ${sw} -> ${perm}"
-[[ "${perm}" == *t* ]] || fail "sticky bit (t) not shown in ${perm}"
+[[ "${perm}" == *T* ]] || fail "sticky bit (T) not shown in ${perm}"
 [[ "${perm}" == *s* ]] || fail "setgid bit (s) not shown in ${perm}"
-ok "${sw} is 3775 with sticky + setgid (symbolic check)"
+ok "${sw} and ${sw}/cuda are 3770 with sticky + setgid (symbolic check)"
 
 for u in "${USER_A}" "${USER_B}"; do
   id -nG "${u}" | tr ' ' '\n' | grep -qx "${SOFTWARE_GROUP}" || fail "${u} not in ${SOFTWARE_GROUP}"
@@ -215,11 +219,11 @@ chgrp -R root "${NORM_TREE}"
 find "${NORM_TREE}" -type d -exec chmod g-s {} +
 
 ./fix-migrated-shared-software.sh --normalize-perms "${NORM_TREE}"
-[[ "$(stat -c '%a' "${NORM_TREE}/bin")" == "2755" ]] || fail "norm bin dir want 2755 got $(stat -c '%a' "${NORM_TREE}/bin")"
-[[ "$(stat -c '%a' "${NORM_TREE}/data.txt")" == "644" ]] || fail "norm data want 644 got $(stat -c '%a' "${NORM_TREE}/data.txt")"
-[[ "$(stat -c '%a' "${NORM_TREE}/bin/tool")" == "755" ]] || fail "norm tool want 755 got $(stat -c '%a' "${NORM_TREE}/bin/tool")"
+[[ "$(stat -c '%a' "${NORM_TREE}/bin")" == "2750" ]] || fail "norm bin dir want 2750 got $(stat -c '%a' "${NORM_TREE}/bin")"
+[[ "$(stat -c '%a' "${NORM_TREE}/data.txt")" == "640" ]] || fail "norm data want 640 got $(stat -c '%a' "${NORM_TREE}/data.txt")"
+[[ "$(stat -c '%a' "${NORM_TREE}/bin/tool")" == "750" ]] || fail "norm tool want 750 got $(stat -c '%a' "${NORM_TREE}/bin/tool")"
 as_user "${USER_A}" test -x "${NORM_TREE}/bin/tool" || fail "${USER_A} should execute normalized tool"
-ok "fix-migrated-shared-software --normalize-perms 2755/644/755"
+ok "fix-migrated-shared-software --normalize-perms 2750/640/750"
 
 echo "=== fix-migrated-shared-software.sh rejects path outside SOFTWARE_ROOT ==="
 expect_fail "fix script rejects /tmp" \
@@ -234,6 +238,9 @@ fi
 
 expect_fail "${USER_C} (not in ${SOFTWARE_GROUP}) cannot create in ${sw}" \
   as_user "${USER_C}" touch "${sw}/by_${USER_C}" 2>/dev/null
+
+expect_fail "${USER_C} (not in ${SOFTWARE_GROUP}) cannot list ${sw}" \
+  as_user "${USER_C}" ls "${sw}" 2>/dev/null
 
 echo "=== ~/${USER_SOFTWARE_LINK_NAME} -> SOFTWARE_ROOT ==="
 for u in "${USER_A}" "${USER_B}"; do

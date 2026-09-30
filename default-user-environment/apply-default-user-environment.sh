@@ -153,10 +153,10 @@ if [[ "${ENABLE_SOFTWARE_AREA}" == "1" ]]; then
   if [[ -e "${CUDA_SHARED_DIR}" ]] && [[ ! -d "${CUDA_SHARED_DIR}" ]]; then
     die "shared cuda path exists and is not a directory: ${CUDA_SHARED_DIR}"
   fi
-  # 3775 keeps this directory collaborative for SOFTWARE_GROUP and preserves group on new files.
+  # SHARED_SOFTWARE_MODE keeps this directory collaborative for SOFTWARE_GROUP (group rwx, setgid, sticky). Other has no access.
   run mkdir -p "${CUDA_SHARED_DIR}"
   run chown "root:${SOFTWARE_GROUP}" "${CUDA_SHARED_DIR}"
-  run chmod 3775 "${CUDA_SHARED_DIR}"
+  run chmod "${SHARED_SOFTWARE_MODE}" "${CUDA_SHARED_DIR}"
 fi
 
 if [[ "${ENABLE_DATA_ROOT_LINK}" == "1" ]]; then

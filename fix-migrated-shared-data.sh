@@ -8,8 +8,8 @@
 #   sudo ./fix-migrated-shared-data.sh [options] PATH [PATH ...]
 #
 # Options:
-#   --normalize-perms   Also chmod directories to 2755 (setgid + rwxr-xr-x); files
-#                       without any execute bit -> 644, with any execute bit -> 755.
+#   --normalize-perms   Also chmod directories to 2750 (setgid + rwxr-x---); files
+#                       without any execute bit -> 640, with any execute bit -> 750.
 #   -h, --help          show this help
 #
 # Default (without --normalize-perms): chgrp -R and chmod g+s on directories only;

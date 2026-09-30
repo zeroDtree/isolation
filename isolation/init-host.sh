@@ -15,6 +15,7 @@ require_root
 
 run mkdir -p "${SHARED_DATA_PATH}"
 run chown root:root "${DATA_ROOT}"
+# root:root, so other must keep execute or ~/data cannot traverse into per-user and shared dirs. Do not use 750.
 run chmod 755 "${DATA_ROOT}"
 run groupadd -f "${SHARED_GROUP}"
 run chown "root:${SHARED_GROUP}" "${SHARED_DATA_PATH}"

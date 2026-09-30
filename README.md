@@ -63,9 +63,9 @@ Permissions applied under each path (after `chgrp -R` to `SOFTWARE_GROUP` in all
 
 | Target                          | Default                                              | With `--normalize-perms`      |
 | ------------------------------- | ---------------------------------------------------- | ----------------------------- |
-| Directories                     | Add setgid: `chmod g+s` (other mode bits left as-is) | `2755` (setgid + `rwxr-xr-x`) |
-| Regular files (no execute bit)  | Unchanged                                            | `644`                         |
-| Regular files (any execute bit) | Unchanged                                            | `755`                         |
+| Directories                     | Add setgid: `chmod g+s` (other mode bits left as-is) | `2750` (setgid + `rwxr-x---`) |
+| Regular files (no execute bit)  | Unchanged                                            | `640`                         |
+| Regular files (any execute bit) | Unchanged                                            | `750`                         |
 
 - Requires **`ENABLE_SOFTWARE_AREA=1`** in config.
 - Use **`DRY_RUN=1`** to print planned actions only.
@@ -85,9 +85,9 @@ Permissions applied under each path (after `chgrp -R` to `SHARED_GROUP` in all c
 
 | Target                          | Default                                              | With `--normalize-perms`      |
 | ------------------------------- | ---------------------------------------------------- | ----------------------------- |
-| Directories                     | Add setgid: `chmod g+s` (other mode bits left as-is) | `2755` (setgid + `rwxr-xr-x`) |
-| Regular files (no execute bit)  | Unchanged                                            | `644`                         |
-| Regular files (any execute bit) | Unchanged                                            | `755`                         |
+| Directories                     | Add setgid: `chmod g+s` (other mode bits left as-is) | `2750` (setgid + `rwxr-x---`) |
+| Regular files (no execute bit)  | Unchanged                                            | `640`                         |
+| Regular files (any execute bit) | Unchanged                                            | `750`                         |
 
 - Ensure **`SHARED_DATA_PATH`** exists (`isolation/init-host.sh` creates it).
 - Use **`DRY_RUN=1`** to print planned actions only.
@@ -108,9 +108,9 @@ Permissions applied under each path (after `chgrp -R` to `SHARED_GROUP` in all c
 
 | Target                          | Default                                              | With `--normalize-perms`      |
 | ------------------------------- | ---------------------------------------------------- | ----------------------------- |
-| Directories                     | Add setgid: `chmod g+s` (other mode bits left as-is) | `2755` (setgid + `rwxr-xr-x`) |
-| Regular files (no execute bit)  | Unchanged                                            | `644`                         |
-| Regular files (any execute bit) | Unchanged                                            | `755`                         |
+| Directories                     | Add setgid: `chmod g+s` (other mode bits left as-is) | `2750` (setgid + `rwxr-x---`) |
+| Regular files (no execute bit)  | Unchanged                                            | `640`                         |
+| Regular files (any execute bit) | Unchanged                                            | `750`                         |
 
 - Use **`--dry-run`** (or **`DRY_RUN=1`**) to print planned actions only. The checks above still run.
 
