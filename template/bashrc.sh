@@ -37,15 +37,74 @@ add_pwd_to_path_config() {
 
 export LANG=en_US.UTF-8
 
-proxy_port=7890
-proxy_ip=127.0.0.1
+# One port on the first line. PROXY_PORT_FILE overrides the path.
+# When unset, use the file clash-tunnel.sh writes by default.
+# A missing or invalid file makes proxy_on fail.
+# zsh ties the name path to PATH, so these locals use port_path.
+__proxy_expand_path() {
+  local port_path="$1"
+  case "$port_path" in
+    "~") printf '%s\n' "$HOME" ;;
+    "~/"*) printf '%s\n' "$HOME/${port_path#"~/"}" ;;
+    *) printf '%s\n' "$port_path" ;;
+  esac
+}
+
+__proxy_port_file() {
+  if [ -n "${PROXY_PORT_FILE:-}" ]; then
+    __proxy_expand_path "$PROXY_PORT_FILE"
+  else
+    printf '%s\n' "${HOME}/.config/clash-proxy-port"
+  fi
+}
+
+__proxy_trim() {
+  local value="$1"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
+  printf '%s' "$value"
+}
+
+__proxy_resolve() {
+  local port_path raw
+  port_path="$(__proxy_port_file)" || return 1
+  if [ ! -f "$port_path" ]; then
+    echo "proxy_on: ${port_path} does not exist" >&2
+    echo "Create this file and write the proxy port in it, or run clash-tunnel.sh on the machine that runs Clash." >&2
+    return 1
+  fi
+  if [ ! -r "$port_path" ]; then
+    echo "proxy_on: cannot read ${port_path}" >&2
+    return 1
+  fi
+  raw="$(command head -n 1 -- "$port_path" 2>/dev/null)" || {
+    echo "proxy_on: cannot read ${port_path}" >&2
+    return 1
+  }
+  raw="$(__proxy_trim "$raw")"
+  case "$raw" in
+    [1-9]|[1-9][0-9]|[1-9][0-9][0-9]|[1-9][0-9][0-9][0-9]|[1-9][0-9][0-9][0-9][0-9]) ;;
+    *)
+      echo "proxy_on: invalid port in ${port_path}" >&2
+      return 1
+      ;;
+  esac
+  if [ "$raw" -lt 1 ] || [ "$raw" -gt 65535 ]; then
+    echo "proxy_on: invalid port in ${port_path}" >&2
+    return 1
+  fi
+  proxy_ip=127.0.0.1
+  proxy_port="$raw"
+  return 0
+}
 
 proxy_on() {
-  local var url="http://${proxy_ip}:${proxy_port}"
+  local var url
+  __proxy_resolve || return 1
+  url="http://${proxy_ip}:${proxy_port}"
   for var in http_proxy https_proxy all_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY; do
-    local cmd="export ${var}=${url}"
-    echo "$cmd"
-    eval "$cmd"
+    echo "export ${var}=${url}"
+    export "${var}=${url}"
   done
   export no_proxy=127.0.0.1,localhost
   export NO_PROXY=127.0.0.1,localhost
@@ -55,9 +114,8 @@ proxy_on() {
 proxy_off() {
   local var
   for var in http_proxy https_proxy all_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY NO_PROXY no_proxy; do
-    local cmd="unset ${var}"
-    echo "$cmd"
-    eval "$cmd"
+    echo "unset ${var}"
+    unset "$var"
   done
   echo -e "\033[31m[×] Proxy disabled\033[0m"
 }

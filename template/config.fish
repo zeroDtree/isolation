@@ -24,14 +24,65 @@ end
 
 set -gx LANG en_US.UTF-8
 
-set -g proxy_port 7890
-set -g proxy_ip 127.0.0.1
+# One port on the first line. PROXY_PORT_FILE overrides the path.
+# When unset, use the file clash-tunnel.sh writes by default.
+# A missing or invalid file makes proxy_on fail.
+function __proxy_expand_path -a path
+    if string match -q '~' -- "$path"
+        echo $HOME
+    else if string match -q '~/*' -- "$path"
+        echo "$HOME/"(string sub -s 3 -- "$path")
+    else
+        echo "$path"
+    end
+end
+
+function __proxy_port_file
+    if set -q PROXY_PORT_FILE; and test -n "$PROXY_PORT_FILE"
+        __proxy_expand_path "$PROXY_PORT_FILE"
+    else
+        echo "$HOME/.config/clash-proxy-port"
+    end
+end
+
+function __proxy_resolve
+    set -l path (__proxy_port_file)
+    if not test -f "$path"
+        echo "proxy_on: $path does not exist" >&2
+        echo "Create this file and write the proxy port in it, or run clash-tunnel.sh on the machine that runs Clash." >&2
+        return 1
+    end
+    if not test -r "$path"
+        echo "proxy_on: cannot read $path" >&2
+        return 1
+    end
+
+    set -l raw (command head -n 1 -- "$path" 2>/dev/null)
+    or begin
+        echo "proxy_on: cannot read $path" >&2
+        return 1
+    end
+    set raw (string trim -- "$raw")
+    if not string match -qr '^[1-9][0-9]{0,4}$' -- "$raw"
+        echo "proxy_on: invalid port in $path" >&2
+        return 1
+    end
+    if test "$raw" -lt 1; or test "$raw" -gt 65535
+        echo "proxy_on: invalid port in $path" >&2
+        return 1
+    end
+
+    set -g proxy_ip 127.0.0.1
+    set -g proxy_port "$raw"
+    return 0
+end
 
 function proxy_on
+    __proxy_resolve
+    or return 1
     for var in http_proxy https_proxy all_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY
-        set -l cmd "set -gx $var http://$proxy_ip:$proxy_port"
-        echo $cmd
-        eval $cmd
+        echo "set -gx $var http://$proxy_ip:$proxy_port"
+        set -gx $var "http://$proxy_ip:$proxy_port"
     end
     set -gx no_proxy 127.0.0.1,localhost
     set -gx NO_PROXY 127.0.0.1,localhost
@@ -40,9 +91,8 @@ end
 
 function proxy_off
     for var in http_proxy https_proxy all_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY NO_PROXY no_proxy
-        set -l cmd "set -e $var"
-        echo $cmd
-        eval $cmd
+        echo "set -e $var"
+        set -e $var
     end
     echo -e "\033[31m[×] Proxy disabled\033[0m"
 end
